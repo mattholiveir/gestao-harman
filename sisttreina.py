@@ -2,17 +2,25 @@ import streamlit as st
 import psycopg2
 import pandas as pd
 from datetime import date, datetime, timedelta
+from PIL import Image  # Biblioteca para carregar a imagem local como ícone nativo
 
 # ==================================================
-# CONFIGURAÇÃO DE HOSPEDAGEM LOCAL DA IMAGEM
+# CONFIGURAÇÃO DE IMAGENS E LOGOS
 # ==================================================
-# Lê o ficheiro diretamente da raiz do repositório (evita links externos quebrados)
-URL_LOGO_COMBINADA = "logo.png"
+# Links das imagens externas (Parceria MultiTech e Harman)
+URL_LOGO_MULTITECH = "https://i.ibb.co/B2qyC90/MTH.png"
+URL_LOGO_HARMAN = "https://i.ibb.co/b3bNfFv/harman.png"
+
+# Carrega a logo local de forma segura para usar como ícone nativo do App
+try:
+    img_icone_nativo = Image.open("logo.png")
+except Exception:
+    img_icone_nativo = "📊"  # Fallback caso a imagem local suma por algum motivo
 
 # CONFIGURAÇÃO DA PÁGINA
 st.set_page_config(
     page_title="Gestão de Treinamentos - Harman 2026",
-    page_icon="📊",  # Emoji estável para prevenir falhas de carregamento no ícone da aba
+    page_icon=img_icone_nativo,  # Agora o ícone nativo/aba do celular será a sua logo.png
     layout="wide"
 )
 
@@ -68,7 +76,6 @@ def conectar_nuvem():
         st.error(f"Erro ao conectar ao banco de dados: {e}")
         st.stop()
 
-# Tenta obter a conexão de forma segura reinstanciando se houver falhas anteriores
 try:
     conn = conectar_nuvem()
     with conn.cursor() as t_cur:
@@ -77,7 +84,6 @@ except Exception:
     st.cache_resource.clear()
     conn = conectar_nuvem()
 
-# Inicialização segura por blocos isolados com tratamento de transações com falha
 def inicializar_banco(conexao):
     queries = [
         """CREATE TABLE IF NOT EXISTS cursos (
@@ -112,7 +118,6 @@ def inicializar_banco(conexao):
             divisao_nome VARCHAR(50)
         );"""
     ]
-    
     for q in queries:
         try:
             with conexao.cursor() as cur:
@@ -130,7 +135,6 @@ def inicializar_banco(conexao):
 
 inicializar_banco(conn)
 
-# BUSCA DINÂMICA DE CURSOS
 lista_cursos_banco = []
 try:
     with conn.cursor() as cursor_limpo:
@@ -144,24 +148,31 @@ except Exception:
 # ==================================================
 with st.sidebar:
     st.markdown("<p style='text-align: center; font-size: 11px; color: #BACAD6; letter-spacing: 1px;'>PARCERIA COMERCIAL</p>", unsafe_allow_html=True)
+    
+    # Exibe a logo da MultiTech na barra lateral de forma limpa
     try:
-        st.image(URL_LOGO_COMBINADA, use_container_width=True)
+        st.image(URL_LOGO_MULTITECH, use_container_width=True)
     except Exception:
-        st.warning("A carregar imagem do repositório...")
+        pass
         
     st.markdown("<br>", unsafe_allow_html=True)
     menu = st.sidebar.radio("Menu de Navegação", ["Dashboard", "Agendar Turma", "Controle de Saldo", "Gerenciar Alunos", "Histórico e Reciclagens"])
 
-# Cabeçalho principal
-head_col1, head_col2 = st.columns([1, 4])
+# Cabeçalho principal com as duas logos separadas nas pontas
+head_col1, head_col2, head_col3 = st.columns([1, 4, 1])
 with head_col1: 
     try:
-        st.image(URL_LOGO_COMBINADA, width=150)
+        st.image(URL_LOGO_MULTITECH, width=120)
     except Exception:
         pass
 with head_col2:
     st.title("Sistema de Gestão de Treinamentos")
     st.caption("MultiTech Treinamentos Industriais — Cliente: Harman")
+with head_col3:
+    try:
+        st.image(URL_LOGO_HARMAN, width=120)
+    except Exception:
+        pass
 st.markdown("<br>", unsafe_allow_html=True)
 
 # ==================================================
@@ -173,7 +184,6 @@ if menu == "Dashboard":
         cursos["saldo_atual"] = cursos["saldo_contratado"] - cursos["alunos_realizados"]
         total_alunos = cursos["alunos_realizados"].sum()
         saldo_geral = cursos["saldo_atual"].sum()
-        
         with conn.cursor() as cur:
             cur.execute("SELECT COUNT(*) FROM turmas;")
             total_turmas = cur.fetchone()[0]
@@ -188,19 +198,16 @@ if menu == "Dashboard":
         {"col": c3, "titulo": "Alunos Treinados", "valor": str(int(total_alunos))},
         {"col": c4, "titulo": "Saldo Geral Consolidado", "valor": f"{int(saldo_geral)} vagas"}
     ]
-
     for item in metricas_dados:
         with item["col"]:
             st.markdown(f'<div class="metric-container"><div class="metric-title">{item["titulo"]}</div><div class="metric-value">{item["valor"]}</div></div>', unsafe_allow_html=True)
 
     st.divider()
     st.subheader("Resumo de Saldos Oficiais por Curso")
-    
     if not cursos.empty:
         df_dashboard = cursos[["nome", "saldo_contratado", "alunos_realizados", "saldo_atual"]].copy()
         df_dashboard.columns = ["Nome do Curso", "Saldo Contratado", "Alunos Realizados", "Saldo Atual"]
         st.dataframe(df_dashboard, use_container_width=True, hide_index=True)
-
         negativos = cursos[cursos["saldo_atual"] < 0]
         for _, row in negativos.iterrows():
             st.error(f"Atenção: O curso {row['nome']} está com saldo negativo ({row['saldo_atual']} vagas). Necessita de nova recarga urgente!")
@@ -215,7 +222,6 @@ elif menu == "Agendar Turma":
     data = st.date_input("Data", date.today())
     cliente = st.text_input("Cliente", value="Harman")
     instrutor = st.text_input("Instrutor")
-    
     if lista_cursos_banco:
         curso = st.selectbox("Curso", lista_cursos_banco)
         saldo_atual = 0
@@ -227,11 +233,9 @@ elif menu == "Agendar Turma":
                 saldo_atual = res_curso[0] - res_curso[1]
         except Exception:
             pass
-            
         st.info(f"Saldo disponível para este curso: {saldo_atual} vagas")
         alunos = st.number_input("Quantidade de Alunos", min_value=1, max_value=500, value=10)
         status = st.selectbox("Status", ["Agendada", "Realizada"])
-
         if st.button("Salvar Turma"):
             try:
                 with conn.cursor() as cur:
@@ -243,20 +247,18 @@ elif menu == "Agendar Turma":
             except Exception as e:
                 st.error(f"Erro ao salvar turma: {e}")
     else:
-        st.warning("Cadastre um curso primeiro no separador 'Controle de Saldo'.")
+        st.warning("Cadastre un curso primeiro no separador 'Controle de Saldo'.")
 
 # ==================================================
 # CONTROLE DE SALDO
 # ==================================================
 elif menu == "Controle de Saldo":
     st.subheader("Auditoria e Controle de Saldos")
-    
     try:
         cursos = pd.read_sql("SELECT * FROM cursos", conn)
         cursos["saldo_atual"] = cursos["saldo_contratado"] - cursos["alunos_realizados"]
     except Exception:
         cursos = pd.DataFrame()
-    
     if not cursos.empty:
         col_c1, col_c2 = st.columns(2)
         for idx, row in cursos.iterrows():
@@ -272,17 +274,14 @@ elif menu == "Controle de Saldo":
                     </p>
                 </div>
                 """, unsafe_allow_html=True)
-            
     st.divider()
     tab_recarga, tab_novo_curso = st.tabs(["Adicionar Nova Recarga de Vagas", "Cadastrar Novo Curso"])
-    
     with tab_recarga:
         st.markdown("### Adicionar Vagas a um Curso Existente")
         if lista_cursos_banco:
             curso_recarga = st.selectbox("Selecionar Curso para Recarga", lista_cursos_banco)
             qtd = st.number_input("Quantidade Contratada (Vagas)", min_value=1, max_value=10000, value=10, key="qtd_recarga")
             obs = st.text_input("Observação / Número do Pedido", key="obs_recarga")
-
             if st.button("Confirmar Entrada de Vagas"):
                 try:
                     with conn.cursor() as cur:
@@ -294,14 +293,12 @@ elif menu == "Controle de Saldo":
                     st.error(f"Erro na recarga: {e}")
         else:
             st.info("Nenhum curso cadastrado para receber recargas.")
-            
     with tab_novo_curso:
         st.markdown("### Inserir Novo Curso na Grade")
         novo_curso_nome = st.text_input("Nome do Novo Curso").strip()
         resp_tecnico = st.text_input("Instrutor / Responsável Técnico").strip()
         qtd_inicial = st.number_input("Quantidade Contratada Inicial", min_value=0, max_value=10000, value=0, key="qtd_novo")
         obs_novo = st.text_input("Observação / Número do Pedido", key="obs_novo")
-
         if st.button("Cadastrar Novo Curso"):
             if not novo_curso_nome:
                 st.error("O nome do curso não pode ser vazio.")
@@ -324,16 +321,13 @@ elif menu == "Controle de Saldo":
 elif menu == "Gerenciar Alunos":
     st.subheader("Controle de Alunos / Colaboradores Harman")
     tab_listar, tab_cadastrar = st.tabs(["Lista de Funcionários", "Cadastrar Novo Colaborador"])
-    
     with tab_cadastrar:
         st.markdown("### Formulário de Cadastro")
         matricula = st.text_input("Número de Matrícula").strip()
         nome_completo = st.text_input("Nome Completo").strip()
         funcao = st.text_input("Função / Cargo").strip()
         divisao_escolhida = st.radio("Divisão da Empresa", ["Lifestyle (Código 01)", "Automotive (Código 02)"])
-        
         div_codigo, div_nome = ("01", "Lifestyle") if "Lifestyle" in divisao_escolhida else ("02", "Automotive")
-
         if st.button("Salvar Colaborador"):
             if not matricula or not nome_completo:
                 st.error("Matrícula e Nome Completo são obrigatórios.")
@@ -351,14 +345,12 @@ elif menu == "Gerenciar Alunos":
                     st.rerun()
                 except Exception as error:
                     st.error(f"Erro ao salvar: {error}")
-
     with tab_listar:
         st.markdown("### Funcionários Cadastrados")
         try:
             df_colab = pd.read_sql("SELECT matricula as \"Matrícula\", nome_completo as \"Nome Completo\", funcao as \"Função\", divisao_codigo as \"Cód. Divisão\", divisao_nome as \"Divisão\" FROM colaboradores ORDER BY nome_completo ASC", conn)
         except Exception:
             df_colab = pd.DataFrame()
-            
         if not df_colab.empty:
             st.dataframe(df_colab, use_container_width=True, hide_index=True)
             st.divider()
@@ -380,20 +372,17 @@ elif menu == "Gerenciar Alunos":
 elif menu == "Histórico e Reciclagens":
     st.subheader("Histórico Geral de Treinamentos e Reciclagens")
     tab_hist, tab_status_update = st.tabs(["Histórico Geral e Vencimentos", "Atualizar Status de Agendamentos"])
-    
     with tab_status_update:
         st.markdown("### Alterar Status de Turmas Agendadas")
         try:
             df_agendadas = pd.read_sql("SELECT id, data, curso, instrutor, alunos, status FROM turmas WHERE status = 'Agendada' ORDER BY data ASC", conn)
         except Exception:
             df_agendadas = pd.DataFrame()
-
         if not df_agendadas.empty:
             df_agendadas['data'] = pd.to_datetime(df_agendadas['data']).dt.strftime('%d/%m/%Y')
             st.dataframe(df_agendadas, use_container_width=True, hide_index=True)
             st.divider()
             id_selecionado = st.number_input("Digite o ID da turma concluída:", min_value=1, step=1)
-                
             if st.button("Confirmar Realização da Turma"):
                 try:
                     with conn.cursor() as cur:
@@ -409,24 +398,20 @@ elif menu == "Histórico e Reciclagens":
                     st.error(f"Erro: {e}")
         else:
             st.info("Não existem turmas agendadas no momento.")
-
     with tab_hist:
         st.markdown("Regra: Validade recomendada de 2 anos (730 dias).")
         try:
             df = pd.read_sql("SELECT id, data, cliente, curso, alunos, status FROM turmas ORDER BY id DESC", conn)
         except Exception:
             df = pd.DataFrame()
-
         if not df.empty:
             df['data'] = pd.to_datetime(df['data'])
             df['Data de Vencimento'] = df['data'] + timedelta(days=730)
             data_hoje = datetime.combine(date.today(), datetime.min.time())
             df['Dias Restantes'] = (df['Data de Vencimento'] - data_hoje).dt.days
-
             df['Status Reciclagem'] = df['Dias Restantes'].apply(lambda d: "VENCIDO" if d < 0 else ("EXPIRANDO" if d <= 60 else "Regular"))
             df['data'] = df['data'].dt.strftime('%d/%m/%Y')
             df['Data de Vencimento'] = df['Data de Vencimento'].dt.strftime('%d/%m/%Y')
-
             st.dataframe(df[["id", "data", "cliente", "curso", "alunos", "status", "Data de Vencimento", "Status Reciclagem"]], use_container_width=True, hide_index=True)
         else:
             st.info("Nenhuma turma registrada.")
