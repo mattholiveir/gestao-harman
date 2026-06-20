@@ -8,7 +8,7 @@ from datetime import date, datetime, timedelta
 # =========================
 st.set_page_config(
     page_title="Gestão de Treinamentos - Harman 2026",
-    page_icon="https://i.ibb.co/6wD2Zfb/image.png",  # Link direto da sua logo combinada no ImgBB
+    page_icon="https://i.ibb.co/6W4wWwz/image.png",  # Link direto da sua logo combinada Harman + Multitech
     layout="wide"
 )
 
@@ -40,7 +40,7 @@ h1, h2, h3 { color:#0A2D62; }
 """, unsafe_allow_html=True)
 
 # =========================
-# CONEXÃO COM BANCO EM NUVEM (POSTGRESQL)
+# CONEXÃO COM BANCO EM NUVEM (SUPABASE / POSTGRESQL)
 # =========================
 @st.cache_resource(ttl=600)
 def conectar_nuvem():
@@ -61,7 +61,7 @@ def conectar_nuvem():
 conn = conectar_nuvem()
 cursor = conn.cursor()
 
-# Garantia da existência das tabelas
+# Garantia estrutural das tabelas no Supabase
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS cursos (
     id SERIAL PRIMARY KEY,
@@ -97,11 +97,11 @@ CREATE TABLE IF NOT EXISTS colaboradores (
 """)
 conn.commit()
 
-# Adiciona coluna caso não exista em bancos mais antigos
+# Adiciona coluna caso não exista (segurança contra quebras)
 try:
     cursor.execute("ALTER TABLE cursos ADD COLUMN IF NOT EXISTS responsavel_tecnico VARCHAR(100) DEFAULT '';")
     conn.commit()
-except:
+except Exception:
     conn.rollback()
 
 # Popula cursos padrão se o banco estiver vazio
@@ -110,9 +110,8 @@ if cursor.fetchone()[0] == 0:
     cursor.execute("INSERT INTO cursos (nome, saldo_contratado, responsavel_tecnico) VALUES ('NR12', 0, 'MultiTech'), ('Normas Técnicas de Solda', 0, 'MultiTech');")
     conn.commit()
 
-# URLs das Logos
-URL_LOGO_MULTITECH = "https://tse3.mm.bing.net/th/id/OIP.L8zPK2KlscAyAmNBldf3bgHaHa?pid=Api&P=0&h=180"
-URL_LOGO_HARMAN = "https://svgbrand.com/uploads/images/webp/202311/SVG_Brand_harman_international.webp"
+# URL da Nova Logo Combinada MultiTech + Harman
+URL_LOGO_COMBINADA = "https://i.ibb.co/6W4wWwz/image.png"
 
 # BUSCA DINÂMICA DE CURSOS
 cursor.execute("SELECT nome FROM cursos ORDER BY nome;")
@@ -123,20 +122,18 @@ lista_cursos_banco = [row[0] for row in cursor.fetchall()]
 # ==================================================
 with st.sidebar:
     st.markdown("<p style='text-align: center; font-size: 11px; color: #BACAD6; letter-spacing: 1px;'>PARCERIA COMERCIAL</p>", unsafe_allow_html=True)
-    side_logo1, side_logo2 = st.columns(2)
-    with side_logo1: st.image(URL_LOGO_MULTITECH, use_container_width=True)
-    with side_logo2: st.image(URL_LOGO_HARMAN, use_container_width=True)
+    st.image(URL_LOGO_COMBINADA, use_container_width=True)
         
     st.markdown("<br>", unsafe_allow_html=True)
     menu = st.sidebar.radio("Menu de Navegação", ["Dashboard", "Agendar Turma", "Controle de Saldo", "Gerenciar Alunos", "Histórico e Reciclagens"])
 
 # Cabeçalho principal
-head_col1, head_col2, head_col3 = st.columns([1, 5, 2])
-with head_col1: st.image(URL_LOGO_MULTITECH, width=75)
+head_col1, head_col2 = st.columns([1, 4])
+with head_col1: 
+    st.image(URL_LOGO_COMBINADA, width=150)
 with head_col2:
     st.title("Sistema de Gestão de Treinamentos")
-    st.caption("MultiTech Treinamentos Industriais - Cliente: Harman")
-with head_col3: st.image(URL_LOGO_HARMAN, width=160)
+    st.caption("MultiTech Treinamentos Industriais — Cliente: Harman")
 st.markdown("<br>", unsafe_allow_html=True)
 
 # ==================================================
@@ -167,7 +164,6 @@ if menu == "Dashboard":
     
     st.subheader("Resumo de Saldos Oficiais por Curso")
     
-    # Exibição da tabela renomeada sem underlines
     df_dashboard = cursos[["nome", "saldo_contratado", "alunos_realizados", "saldo_atual"]].copy()
     df_dashboard.columns = ["Nome do Curso", "Saldo Contratado", "Alunos Realizados", "Saldo Atual"]
     st.dataframe(df_dashboard, use_container_width=True, hide_index=True)
@@ -185,28 +181,28 @@ elif menu == "Agendar Turma":
     cliente = st.text_input("Cliente", value="Harman")
     instrutor = st.text_input("Instrutor")
     
-    curso = st.selectbox("Curso", lista_cursos_banco)
+    if lista_cursos_banco:
+        curso = st.selectbox("Curso", lista_cursos_banco)
 
-    cursor.execute("SELECT saldo_contratado, alunos_realizados FROM cursos WHERE nome = %s", (curso,))
-    res_curso = cursor.fetchone()
-    saldo_atual = (res_curso[0] - res_curso[1]) if res_curso else 0
-    st.info(f"Saldo disponível para este curso: {saldo_atual} vagas")
+        cursor.execute("SELECT saldo_contratado, alunos_realizados FROM cursos WHERE nome = %s", (curso,))
+        res_curso = cursor.fetchone()
+        saldo_atual = (res_curso[0] - res_curso[1]) if res_curso else 0
+        st.info(f"Saldo disponível para este curso: {saldo_atual} vagas")
 
-    alunos = st.number_input("Quantidade de Alunos", min_value=1, max_value=500, value=10)
-    status = st.selectbox("Status", ["Agendada", "Realizada"])
+        alunos = st.number_input("Quantidade de Alunos", min_value=1, max_value=500, value=10)
+        status = st.selectbox("Status", ["Agendada", "Realizada"])
 
-    if st.button("Salvar Turma"):
-        cursor.execute("INSERT INTO turmas (data, cliente, curso, instrutor, alunos, status) VALUES (%s,%s,%s,%s,%s,%s);", (data, cliente, curso, instrutor, alunos, status))
-        if status == "Realizada":
-            cursor.execute("""
-                INSERT INTO cursos (nome, saldo_contratado, alunos_realizados) 
-                VALUES (%s, 0, %s) 
-                ON CONFLICT (nome) 
-                DO UPDATE SET alunos_realizados = cursos.alunos_realizados + EXCLUDED.alunos_realizados;
-            """, (curso, alunos))
-        conn.commit()
-        st.success("Turma cadastrada com sucesso e salva na Nuvem!")
-        st.rerun()
+        if st.button("Salvar Turma"):
+            cursor.execute("INSERT INTO turmas (data, cliente, curso, instrutor, alunos, status) VALUES (%s,%s,%s,%s,%s,%s);", (data, cliente, curso, instrutor, alunos, status))
+            if status == "Realizada":
+                cursor.execute("""
+                    UPDATE cursos SET alunos_realizados = alunos_realizados + %s WHERE nome = %s;
+                """, (alunos, curso))
+            conn.commit()
+            st.success("Turma cadastrada com sucesso e salva na Nuvem!")
+            st.rerun()
+    else:
+        st.warning("Cadastre um curso primeiro na aba 'Controle de Saldo' antes de agendar uma turma.")
 
 # ==================================================
 # CONTROLE DE SALDO
@@ -217,7 +213,6 @@ elif menu == "Controle de Saldo":
     cursos = pd.read_sql("SELECT * FROM cursos", conn)
     cursos["saldo_atual"] = cursos["saldo_contratado"] - cursos["alunos_realizados"]
     
-    # Exibição dos blocos de cursos (Sem gráficos)
     col_c1, col_c2 = st.columns(2)
     for idx, row in cursos.iterrows():
         alvo_col = col_c1 if idx % 2 == 0 else col_c2
@@ -235,7 +230,6 @@ elif menu == "Controle de Saldo":
             
     st.divider()
     
-    # Abas para separar a Recarga de Vagas da criação de um Novo Curso
     tab_recarga, tab_novo_curso = st.tabs(["Adicionar Nova Recarga de Vagas", "Cadastrar Novo Curso"])
     
     with tab_recarga:
@@ -246,9 +240,7 @@ elif menu == "Controle de Saldo":
             obs = st.text_input("Observação / Número do Pedido", key="obs_recarga")
 
             if st.button("Confirmar Entrada de Vagas"):
-                cursor.execute("""
-                    UPDATE cursos SET saldo_contratado = saldo_contratado + %s WHERE nome = %s;
-                """, (qtd, curso_recarga))
+                cursor.execute("UPDATE cursos SET saldo_contratado = saldo_contratado + %s WHERE nome = %s;", (qtd, curso_recarga))
                 cursor.execute("INSERT INTO movimentacoes (data, curso, tipo, quantidade, observacao) VALUES (%s, %s, 'RECARGA', %s, %s);", (date.today(), curso_recarga, qtd, obs))
                 conn.commit()
                 st.success(f"Recarga de {qtd} vagas aplicada com sucesso no curso {curso_recarga}!")
@@ -373,11 +365,8 @@ elif menu == "Histórico e Reciclagens":
                     v_curso, v_alunos = registro
                     cursor.execute("UPDATE turmas SET status = 'Realizada' WHERE id = %s;", (id_selecionado,))
                     cursor.execute("""
-                        INSERT INTO cursos (nome, saldo_contratado, alunos_realizados) 
-                        VALUES (%s, 0, %s) 
-                        ON CONFLICT (nome) 
-                        DO UPDATE SET alunos_realizados = cursos.alunos_realizados + EXCLUDED.alunos_realizados;
-                    """, (v_curso, v_alunos))
+                        UPDATE cursos SET alunos_realizados = alunos_realizados + %s WHERE nome = %s;
+                    """, (v_alunos, v_curso))
                     
                     conn.commit()
                     st.success(f"Sucesso! A Turma ID {id_selecionado} foi definida como REALIZADA.")
