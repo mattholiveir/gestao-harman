@@ -9,6 +9,7 @@ import plotly.express as px
 # =========================
 st.set_page_config(
     page_title="Gestao de Treinamentos - Harman 2026",
+    page_icon="https://i.ibb.co/6wD2Zfb/image.png",  # Link direto da sua logo combinada no ImgBB
     layout="wide"
 )
 
@@ -51,7 +52,7 @@ def conectar_nuvem():
             database=cfg["database"],
             user=cfg["user"],
             password=cfg["password"],
-            port=int(cfg["port"])  # Garante que a porta seja tratada como número inteiro
+            port=int(cfg["port"])
         )
         return conexao
     except Exception as e:
@@ -61,7 +62,7 @@ def conectar_nuvem():
 conn = conectar_nuvem()
 cursor = conn.cursor()
 
-# Garantia da existencia das tabelas
+# Garantia da existencia das tabelas (incluindo a nova tabela de colaboradores)
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS cursos (
     id SERIAL PRIMARY KEY,
@@ -86,10 +87,17 @@ CREATE TABLE IF NOT EXISTS movimentacoes (
     quantidade INTEGER,
     observacao TEXT
 );
+CREATE TABLE IF NOT EXISTS colaboradores (
+    matricula VARCHAR(50) PRIMARY KEY,
+    nome_completo VARCHAR(150),
+    funcao VARCHAR(100),
+    divisao_codigo VARCHAR(10),
+    divisao_nome VARCHAR(50)
+);
 """)
 conn.commit()
 
-# Popula cursos padrão se o banco estiver vazio para garantir que o seletor funcione de início
+# Popula cursos padrão se o banco estiver vazio
 cursor.execute("SELECT COUNT(*) FROM cursos;")
 if cursor.fetchone()[0] == 0:
     cursor.execute("INSERT INTO cursos (nome, saldo_contratado) VALUES ('NR12', 0), ('Normas Técnicas de Solda', 0);")
@@ -99,14 +107,12 @@ if cursor.fetchone()[0] == 0:
 URL_LOGO_MULTITECH = "https://tse3.mm.bing.net/th/id/OIP.L8zPK2KlscAyAmNBldf3bgHaHa?pid=Api&P=0&h=180"
 URL_LOGO_HARMAN = "https://svgbrand.com/uploads/images/webp/202311/SVG_Brand_harman_international.webp"
 
-# ==================================================
-# BUSCA DINÂMICA DE CURSOS (Evita erros de digitação)
-# ==================================================
+# BUSCA DINÂMICA DE CURSOS
 cursor.execute("SELECT nome FROM cursos ORDER BY nome;")
 lista_cursos_banco = [row[0] for row in cursor.fetchall()]
 
 # ==================================================
-# BARRA LATERAL (MENU SIDEBAR)
+# BARRA LATERAL (MENU SIDEBAR COM A ABA ALUNOS)
 # ==================================================
 with st.sidebar:
     st.markdown("<p style='text-align: center; font-size: 11px; color: #BACAD6; letter-spacing: 1px;'>PARCERIA COMERCIAL</p>", unsafe_allow_html=True)
@@ -115,7 +121,7 @@ with st.sidebar:
     with side_logo2: st.image(URL_LOGO_HARMAN, use_container_width=True)
         
     st.markdown("<br>", unsafe_allow_html=True)
-    menu = st.sidebar.radio("Menu de Navegacao", ["Dashboard", "Agendar Turma", "Atualizar Status", "Controle de Saldo", "Historico e Reciclagens"])
+    menu = st.sidebar.radio("Menu de Navegacao", ["Dashboard", "Agendar Turma", "Controle de Saldo", "Gerenciar Alunos", "Historico e Reciclagens"])
 
 # Cabecalho principal
 head_col1, head_col2, head_col3 = st.columns([1, 5, 2])
@@ -181,7 +187,6 @@ elif menu == "Agendar Turma":
     cliente = st.text_input("Cliente", value="Harman")
     instrutor = st.text_input("Instrutor")
     
-    # SELETOR DINÂMICO: Puxa direto os nomes cadastrados no banco de dados
     curso = st.selectbox("Curso", lista_cursos_banco)
 
     cursor.execute("SELECT saldo_contratado, alunos_realizados FROM cursos WHERE nome = %s", (curso,))
@@ -204,53 +209,6 @@ elif menu == "Agendar Turma":
         conn.commit()
         st.success("Turma cadastrada com sucesso e salva na Nuvem!")
         st.rerun()
-
-# ==================================================
-# NOVA ABA: ATUALIZAR STATUS (De Agendada para Realizada)
-# ==================================================
-elif menu == "Atualizar Status":
-    st.subheader("Alterar Status de Turmas Agendadas")
-    st.markdown("Use esta tela para confirmar a realização de turmas previamente agendadas. Isso irá atualizar o saldo de vagas automaticamente.")
-
-    # Carrega do banco apenas turmas que ainda estão como "Agendada"
-    df_agendadas = pd.read_sql("SELECT id, data, curso, instrutor, alunos, status FROM turmas WHERE status = 'Agendada' ORDER BY data ASC", conn)
-
-    if not df_agendadas.empty:
-        df_agendadas['data'] = pd.to_datetime(df_agendadas['data']).dt.strftime('%d/%m/%Y')
-        st.dataframe(df_agendadas, use_container_width=True, hide_index=True)
-        
-        st.divider()
-        col_up1, col_up2 = st.columns(2)
-        
-        with col_up1:
-            id_selecionado = st.number_input("Digite o ID da turma concluída:", min_value=1, step=1)
-            
-        if st.button("Confirmar Realização da Turma"):
-            # Verifica se o ID realmente existe e está agendado
-            cursor.execute("SELECT curso, alunos FROM turmas WHERE id = %s AND status = 'Agendada';", (id_selecionado,))
-            registro = cursor.fetchone()
-            
-            if registro:
-                v_curso, v_alunos = registro
-                
-                # 1. Atualiza o status da turma para "Realizada"
-                cursor.execute("UPDATE turmas SET status = 'Realizada' WHERE id = %s;", (id_selecionado,))
-                
-                # 2. Atualiza o saldo do curso somando os alunos realizados
-                cursor.execute("""
-                    INSERT INTO cursos (nome, saldo_contratado, alunos_realizados) 
-                    VALUES (%s, 0, %s) 
-                    ON CONFLICT (nome) 
-                    DO UPDATE SET alunos_realizados = cursos.alunos_realizados + EXCLUDED.alunos_realizados;
-                """, (v_curso, v_alunos))
-                
-                conn.commit()
-                st.success(f"Sucesso! A Turma ID {id_selecionado} foi definida como REALIZADA e o saldo do curso '{v_curso}' foi atualizado.")
-                st.rerun()
-            else:
-                st.error("ID não encontrado ou a turma já foi marcada como Realizada anteriormente.")
-    else:
-        st.info("Não existem turmas com o status 'Agendada' no momento.")
 
 # ==================================================
 # CONTROLE DE SALDO
@@ -318,59 +276,163 @@ elif menu == "Controle de Saldo":
             st.rerun()
 
 # ==================================================
-# HISTORICO E RECICLAGENS
+# NOVA ABA: GERENCIAR ALUNOS (COLABORADORES HARMAN)
+# ==================================================
+elif menu == "Gerenciar Alunos":
+    st.subheader("Controle de Alunos / Colaboradores Harman")
+    
+    tab_listar, tab_cadastrar = st.tabs(["Lista de Funcionários", "Cadastrar Novo Colaborador"])
+    
+    with tab_cadastrar:
+        st.markdown("### Formulário de Cadastro")
+        matricula = st.text_input("Número de Matrícula").strip()
+        nome_completo = st.text_input("Nome Completo").strip()
+        funcao = st.text_input("Função / Cargo").strip()
+        
+        divisao_escolhida = st.radio("Divisão da Empresa", ["Lifestyle (Código 01)", "Automotive (Código 02)"])
+        
+        if divisao_escolhida == "Lifestyle (Código 01)":
+            div_codigo = "01"
+            div_nome = "Lifestyle"
+        else:
+            div_codigo = "02"
+            div_nome = "Automotive"
+
+        if st.button("Salvar Colaborador"):
+            if not matricula or not nome_completo:
+                st.error("Matrícula e Nome Completo são campos obrigatórios.")
+            else:
+                try:
+                    cursor.execute("""
+                        INSERT INTO colaboradores (matricula, nome_completo, funcao, divisao_codigo, divisao_nome)
+                        VALUES (%s, %s, %s, %s, %s)
+                        ON CONFLICT (matricula) 
+                        DO UPDATE SET nome_completo = EXCLUDED.nome_completo, funcao = EXCLUDED.funcao, 
+                                      divisao_codigo = EXCLUDED.divisao_codigo, divisao_nome = EXCLUDED.divisao_nome;
+                    """, (matricula, nome_completo, funcao, div_codigo, div_nome))
+                    conn.commit()
+                    st.success(f"Colaborador {nome_completo} registrado com sucesso!")
+                    st.rerun()
+                except Exception as error:
+                    st.error(f"Erro ao salvar: {error}")
+
+    with tab_listar:
+        st.markdown("### Funcionários Cadastrados")
+        df_colab = pd.read_sql("SELECT matricula as \"Matrícula\", nome_completo as \"Nome Completo\", funcao as \"Função\", divisao_codigo as \"Cód. Divisão\", divisao_nome as \"Divisão\" FROM colaboradores ORDER BY nome_completo ASC", conn)
+        
+        if not df_colab.empty:
+            st.dataframe(df_colab, use_container_width=True, hide_index=True)
+            
+            # Botão para deletar colaborador se necessário
+            st.divider()
+            mat_excluir = st.text_input("Digite a Matrícula do funcionário que deseja remover:")
+            if st.button("Remover Funcionário"):
+                cursor.execute("SELECT nome_completo FROM colaboradores WHERE matricula = %s", (mat_excluir,))
+                colab_existe = cursor.fetchone()
+                if colab_existe:
+                    cursor.execute("DELETE FROM colaboradores WHERE matricula = %s", (mat_excluir,))
+                    conn.commit()
+                    st.success(f"Colaborador {colab_existe[0]} removido.")
+                    st.rerun()
+                else:
+                    st.error("Matrícula não cadastrada.")
+        else:
+            st.info("Nenhum colaborador registrado ainda.")
+
+# ==================================================
+# HISTORICO E RECICLAGENS (COM SUB-ABAS)
 # ==================================================
 elif menu == "Historico e Reciclagens":
-    st.subheader("Historico de Turmas e Controle de Reciclagem")
-    st.markdown("Regra do Sistema: Todo treinamento possui validade recomendada de 2 anos (730 dias).")
-
-    df = pd.read_sql("SELECT id, data, cliente, curso, alunos, status FROM turmas ORDER BY id DESC", conn)
-
-    if not df.empty:
-        df['data'] = pd.to_datetime(df['data'])
-        df['Data de Vencimento'] = df['data'] + timedelta(days=730)
+    st.subheader("Histórico Geral de Treinamentos e Reciclagens")
+    
+    # Criando sub-abas para embutir a atualização de status aqui dentro
+    tab_hist, tab_status_update = st.tabs(["Histórico Geral e Vencimentos", "Atualizar Status de Agendamentos"])
+    
+    with tab_status_update:
+        st.markdown("### Alterar Status de Turmas Agendadas")
+        st.markdown("Confirme a realização de turmas previamente agendadas para atualizar o saldo automaticamente.")
         
-        data_hoje = datetime.combine(date.today(), datetime.min.time())
-        df['Dias Restantes'] = (df['Data de Vencimento'] - data_hoje).dt.days
+        df_agendadas = pd.read_sql("SELECT id, data, curso, instrutor, alunos, status FROM turmas WHERE status = 'Agendada' ORDER BY data ASC", conn)
 
-        def avaliar_reciclagem(dias):
-            if dias < 0: return "VENCIDO (Agendar Atualizacao)"
-            elif dias <= 60: return "EXPIRANDO (Providenciar Reciclagem)"
-            return "Regular"
-
-        df['Status Reciclagem'] = df['Dias Restantes'].apply(avaliar_reciclagem)
-        df['data'] = df['data'].dt.strftime('%d/%m/%Y')
-        df['Data de Vencimento'] = df['Data de Vencimento'].dt.strftime('%d/%m/%Y')
-
-        st.dataframe(
-            df[["id", "data", "cliente", "curso", "alunos", "status", "Data de Vencimento", "Status Reciclagem"]],
-            use_container_width=True,
-            hide_index=True
-        )
-
-        excel_file = "historico_reciclagem_harman.xlsx"
-        df.to_excel(excel_file, index=False)
-        with open(excel_file, "rb") as arquivo:
-            st.download_button("Exportar Relatorio para Excel", arquivo, file_name=excel_file)
+        if not df_agendadas.empty:
+            df_agendadas['data'] = pd.to_datetime(df_agendadas['data']).dt.strftime('%d/%m/%Y')
+            st.dataframe(df_agendadas, use_container_width=True, hide_index=True)
             
-        st.divider()
-        
-        st.subheader("Painel de Exclusao de Turmas")
-        id_para_apagar = st.number_input("Digite o ID da turma que deseja apagar", min_value=1, step=1)
-        
-        if st.button("Apagar Turma do Registro"):
-            cursor.execute("SELECT curso, alunos, status FROM turmas WHERE id = %s;", (id_para_apagar,))
-            resultado = cursor.fetchone()
+            st.divider()
+            id_selecionado = st.number_input("Digite o ID da turma concluída:", min_value=1, step=1, key="id_update_status")
+                
+            if st.button("Confirmar Realização da Turma"):
+                cursor.execute("SELECT curso, alunos FROM turmas WHERE id = %s AND status = 'Agendada';", (id_selecionado,))
+                registro = cursor.fetchone()
+                
+                if registro:
+                    v_curso, v_alunos = registro
+                    cursor.execute("UPDATE turmas SET status = 'Realizada' WHERE id = %s;", (id_selecionado,))
+                    cursor.execute("""
+                        INSERT INTO cursos (nome, saldo_contratado, alunos_realizados) 
+                        VALUES (%s, 0, %s) 
+                        ON CONFLICT (nome) 
+                        DO UPDATE SET alunos_realizados = cursos.alunos_realizados + EXCLUDED.alunos_realizados;
+                    """, (v_curso, v_alunos))
+                    
+                    conn.commit()
+                    st.success(f"Sucesso! A Turma ID {id_selecionado} foi definida como REALIZADA.")
+                    st.rerun()
+                else:
+                    st.error("ID não encontrado ou a turma já foi realizada.")
+        else:
+            st.info("Não existem turmas com o status 'Agendada' no momento.")
+
+    with tab_hist:
+        st.markdown("Regra do Sistema: Todo treinamento possui validade recomendada de 2 anos (730 dias).")
+
+        df = pd.read_sql("SELECT id, data, cliente, curso, alunos, status FROM turmas ORDER BY id DESC", conn)
+
+        if not df.empty:
+            df['data'] = pd.to_datetime(df['data'])
+            df['Data de Vencimento'] = df['data'] + timedelta(days=730)
             
-            if resultado:
-                v_curso, v_alunos, v_status = resultado
-                cursor.execute("DELETE FROM turmas WHERE id = %s;", (id_para_apagar,))
-                if v_status == "Realizada":
-                    cursor.execute("UPDATE cursos SET alunos_realizados = GREATEST(0, alunos_realizados - %s) WHERE nome = %s;", (v_alunos, v_curso))
-                conn.commit()
-                st.success(f"Turma com ID {id_para_apagar} foi removida!")
-                st.rerun()
-            else:
-                st.error("ID de turma nao encontrado no banco de dados.")
-    else:
-        st.warning("Nenhuma turma ativa registrada.")
+            data_hoje = datetime.combine(date.today(), datetime.min.time())
+            df['Dias Restantes'] = (df['Data de Vencimento'] - data_hoje).dt.days
+
+            def avaliar_reciclagem(dias):
+                if dias < 0: return "VENCIDO (Agendar Atualizacao)"
+                elif dias <= 60: return "EXPIRANDO (Providenciar Reciclagem)"
+                return "Regular"
+
+            df['Status Reciclagem'] = df['Dias Restantes'].apply(avaliar_reciclagem)
+            df['data'] = df['data'].dt.strftime('%d/%m/%Y')
+            df['Data de Vencimento'] = df['Data de Vencimento'].dt.strftime('%d/%m/%Y')
+
+            st.dataframe(
+                df[["id", "data", "cliente", "curso", "alunos", "status", "Data de Vencimento", "Status Reciclagem"]],
+                use_container_width=True,
+                hide_index=True
+            )
+
+            excel_file = "historico_reciclagem_harman.xlsx"
+            df.to_excel(excel_file, index=False)
+            with open(excel_file, "rb") as arquivo:
+                st.download_button("Exportar Relatorio para Excel", arquivo, file_name=excel_file, key="btn_excel")
+                
+            st.divider()
+            
+            st.subheader("Painel de Exclusao de Turmas")
+            id_para_apagar = st.number_input("Digite o ID da turma que deseja apagar", min_value=1, step=1, key="id_delete_turma")
+            
+            if st.button("Apagar Turma do Registro"):
+                cursor.execute("SELECT curso, alunos, status FROM turmas WHERE id = %s;", (id_para_apagar,))
+                resultado = cursor.fetchone()
+                
+                if resultado:
+                    v_curso, v_alunos, v_status = resultado
+                    cursor.execute("DELETE FROM turmas WHERE id = %s;", (id_para_apagar,))
+                    if v_status == "Realizada":
+                        cursor.execute("UPDATE cursos SET alunos_realizados = GREATEST(0, alunos_realizados - %s) WHERE nome = %s;", (v_alunos, v_curso))
+                    conn.commit()
+                    st.success(f"Turma com ID {id_para_apagar} foi removida!")
+                    st.rerun()
+                else:
+                    st.error("ID de turma nao encontrado no banco de dados.")
+        else:
+            st.warning("Nenhuma turma ativa registrada.")
