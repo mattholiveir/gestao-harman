@@ -4,7 +4,7 @@ import pandas as pd
 import base64
 from datetime import date, datetime, timedelta
 
-# CONFIGURAÇÃO DA PÁGINA (Deve ser o primeiro comando Streamlit)
+# CONFIGURAÇÃO DA PÁGINA (Sempre o primeiro comando)
 st.set_page_config(
     page_title="Gestão de Treinamentos - Harman 2026",
     page_icon="🎯",
@@ -12,29 +12,23 @@ st.set_page_config(
 )
 
 # ==================================================
-# CONFIGURAÇÃO DE IMAGENS AND LOGOS
+# ESTILIZAÇÃO CSS (CORRIGIDA PARA NÃO SUMIR COM O MENU)
 # ==================================================
-URL_LOGO_HARMAN = "https://cdn.freelogovectors.net/wp-content/uploads/2020/03/harman-logo.png"
-
-# Estilização Pura (Sem f-string) para garantir estabilidade absoluta do CSS e do Menu Lateral
 st.markdown("""
 <style>
+/* Ocultar menus padrões do Streamlit */
 #MainMenu {visibility: hidden;}
 header {visibility: hidden;}
 footer {visibility: hidden;}
 div[data-testid="stDecoration"] {display: none;}
 
+/* Ajuste de espaçamento da página */
 .block-container {
     padding-top: 1rem !important;
     padding-bottom: 1rem !important;
 }
 
-.main { background-color: #F4F7FA; }
-[data-testid="stSidebar"] { background-color:#0A2D62; }
-[data-testid="stSidebar"] * { color:white; }
-[data-testid="stAppViewBlockContainer"] { opacity: 1 !important; }
-div[data-testid="stBlock"] { opacity: 1 !important; }
-
+/* Customização dos Cards de Métricas */
 .metric-container {
     background-color: white !important;
     padding: 20px 15px;
@@ -51,6 +45,7 @@ div[data-testid="stBlock"] { opacity: 1 !important; }
 .metric-value { color: #0A2D62 !important; font-size: 28px; font-weight: bold; }
 h1, h2, h3 { color:#0A2D62; }
 
+/* Ajuste responsivo para celulares (Telas até 768px) */
 @media (max-width: 768px) {
     div[data-testid="stColumn"] img {
         max-width: 140px !important;
@@ -67,14 +62,19 @@ h1, h2, h3 { color:#0A2D62; }
 </style>
 """, unsafe_allow_html=True)
 
-# Botão para limpeza manual da memória do servidor
+# URL da logo reserva caso a local falhe
+URL_LOGO_HARMAN = "https://cdn.freelogovectors.net/wp-content/uploads/2020/03/harman-logo.png"
+
+# ==================================================
+# BOTÃO DE REINÍCIO NA BARRA LATERAL
+# ==================================================
 if st.sidebar.button("♻️ Limpar Cache e Forçar Reinício"):
     st.cache_resource.clear()
     st.rerun()
 
-# =========================
+# ==================================================
 # CONEXÃO COM BANCO EM NUVEM (POSTGRESQL)
-# =========================
+# ==================================================
 @st.cache_resource(ttl=60)
 def conectar_nuvem():
     try:
@@ -160,21 +160,26 @@ except Exception:
     pass
 
 # ==================================================
-# BARRA LATERAL (MENU SIDEBAR COM SELETOR DE OPÇÕES)
+# BARRA LATERAL (MENU COMPLETO E VISÍVEL)
 # ==================================================
-with st.sidebar:
-    st.markdown("<p style='text-align: center; font-size: 11px; color: #BACAD6; letter-spacing: 1px;'>PARCERIA COMERCIAL</p>", unsafe_allow_html=True)
-    
-    # Exibe a logo diretamente usando o Streamlit de forma limpa e nativa
-    try:
-        st.image("logo.png", use_container_width=True)
-    except Exception:
-        pass
-        
-    st.markdown("<br>", unsafe_allow_html=True)
-    menu = st.radio("Menu de Navegação", ["Dashboard", "Agendar Turma", "Controle de Saldo", "Gerenciar Alunos", "Histórico e Reciclagens"])
+st.sidebar.markdown("<p style='text-align: center; font-size: 11px; color: #555555; letter-spacing: 1px;'>PARCERIA COMERCIAL</p>", unsafe_allow_html=True)
 
-# Cabeçalho principal com as logos alinhadas nas pontas de forma nativa e responsiva
+try:
+    st.sidebar.image("logo.png", use_container_width=True)
+except Exception:
+    pass
+    
+st.sidebar.markdown("<br>", unsafe_allow_html=True)
+
+# Definição clara do rádio de navegação principal
+menu = st.sidebar.radio(
+    "Menu de Navegação", 
+    ["Dashboard", "Agendar Turma", "Controle de Saldo", "Gerenciar Alunos", "Histórico e Reciclagens"]
+)
+
+# ==================================================
+# CABEÇALHO DO CORPO PRINCIPAL
+# ==================================================
 head_col1, head_col2, head_col3 = st.columns([1, 4, 1.2])
 with head_col1: 
     try:
@@ -192,7 +197,7 @@ with head_col3:
 st.markdown("<br>", unsafe_allow_html=True)
 
 # ==================================================
-# DASHBOARD
+# RENDERIZAÇÃO DAS TELAS DE ACORDO COM O MENU
 # ==================================================
 if menu == "Dashboard":
     try:
@@ -230,9 +235,6 @@ if menu == "Dashboard":
     else:
         st.info("Nenhum dado encontrado ou banco a sincronizar.")
 
-# ==================================================
-# AGENDAR TURMA
-# ==================================================
 elif menu == "Agendar Turma":
     st.subheader("Nova Turma")
     data = st.date_input("Data", date.today())
@@ -265,9 +267,6 @@ elif menu == "Agendar Turma":
     else:
         st.warning("Cadastre um curso primeiro no separador 'Controle de Saldo'.")
 
-# ==================================================
-# CONTROLE DE SALDO
-# ==================================================
 elif menu == "Controle de Saldo":
     st.subheader("Auditoria e Controle de Saldos")
     try:
@@ -331,9 +330,6 @@ elif menu == "Controle de Saldo":
                 except Exception as e:
                     st.error(f"Erro ao cadastrar curso: {e}")
 
-# ==================================================
-# GERENCIAR ALUNOS
-# ==================================================
 elif menu == "Gerenciar Alunos":
     st.subheader("Controle de Alunos / Colaboradores Harman")
     tab_listar, tab_cadastrar = st.tabs(["Lista de Funcionários", "Cadastrar Novo Colaborador"])
@@ -382,9 +378,6 @@ elif menu == "Gerenciar Alunos":
         else:
             st.info("Nenhum colaborador registrado ainda.")
 
-# ==================================================
-# HISTÓRICO E RECICLAGENS
-# ==================================================
 elif menu == "Histórico e Reciclagens":
     st.subheader("Histórico Geral de Treinamentos e Reciclagens")
     tab_hist, tab_status_update = st.tabs(["Histórico Geral e Vencimentos", "Atualizar Status de Agendamentos"])
