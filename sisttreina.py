@@ -2,7 +2,6 @@ import streamlit as st
 import psycopg2
 import pandas as pd
 from datetime import date, datetime, timedelta
-from PIL import Image  # Garante que a logo local se torne o ícone nativo do aplicativo no celular
 
 # ==================================================
 # CONFIGURAÇÃO DE IMAGENS E LOGOS
@@ -11,16 +10,14 @@ from PIL import Image  # Garante que a logo local se torne o ícone nativo do ap
 URL_LOGO_MULTITECH = "https://tse3.mm.bing.net/th/id/OIP.L8zPK2KlscAyAmNBldf3bgHaHa?pid=Api&P=0&h=180"
 URL_LOGO_HARMAN = "https://cdn.freelogovectors.net/wp-content/uploads/2020/03/harman-logo.png"
 
-# Carrega a imagem local "logo.png" de maneira segura para o ícone da página/atalho
-try:
-    img_icone_nativo = Image.open("logo.png")
-except Exception:
-    img_icone_nativo = "📊"  # Fallback estável caso a imagem sofra algum problema de leitura
+# Definindo a logo da Harman como o ícone oficial do App. 
+# Links diretos de imagem são lidos de forma muito mais eficiente pelos PWAs dos celulares.
+URL_ICONE_NATIVO = URL_LOGO_HARMAN
 
-# CONFIGURAÇÃO DA PÁGINA
+# CONFIGURAÇÃO DA PÁGINA (Deve ser estritamente o primeiro comando Streamlit)
 st.set_page_config(
     page_title="Gestão de Treinamentos - Harman 2026",
-    page_icon=img_icone_nativo,  # Define o ícone nativo que aparecerá ao instalar no celular
+    page_icon=URL_ICONE_NATIVO,  # Força a logo como ícone da aba e do atalho nativo
     layout="wide"
 )
 
@@ -51,7 +48,7 @@ h1, h2, h3 { color:#0A2D62; }
 </style>
 """, unsafe_allow_html=True)
 
-# Botão para limpeza manual da memória do servidor se houver retenção de imagens antigas
+# Botão para limpeza manual da memória do servidor
 if st.sidebar.button("♻️ Limpar Cache e Forçar Reinício"):
     st.cache_resource.clear()
     st.rerun()
@@ -157,7 +154,7 @@ with st.sidebar:
     st.markdown("<br>", unsafe_allow_html=True)
     menu = st.sidebar.radio("Menu de Navegação", ["Dashboard", "Agendar Turma", "Controle de Saldo", "Gerenciar Alunos", "Histórico e Reciclagens"])
 
-# Cabeçalho principal com as logos originais e alinhadas
+# Cabeçalho principal com as logos originais e alinhadas nas pontas
 head_col1, head_col2, head_col3 = st.columns([1, 4, 1.2])
 with head_col1: 
     try:
@@ -169,7 +166,6 @@ with head_col2:
     st.caption("MultiTech Treinamentos Industriais — Cliente: Harman")
 with head_col3:
     try:
-        # Imagem com redimensionamento apropriado para logotipos retangulares horizontais
         st.image(URL_LOGO_HARMAN, use_container_width=True)
     except Exception:
         pass
@@ -392,7 +388,7 @@ elif menu == "Histórico e Reciclagens":
                             v_curso, v_alunos = registro
                             cur.execute("UPDATE turmas SET status = 'Realizada' WHERE id = %s;", (id_selecionado,))
                             cur.execute("UPDATE cursos SET alunos_realizados = alunos_realizados + %s WHERE nome = %s;", (v_alunos, v_curso))
-                            st.success("Status updated!")
+                            st.success("Status atualizado!")
                             st.rerun()
                 except Exception as e:
                     st.error(f"Erro: {e}")
