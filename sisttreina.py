@@ -1,36 +1,59 @@
 import streamlit as st
 import psycopg2
 import pandas as pd
+import base64
 from datetime import date, datetime, timedelta
 
 # ==================================================
 # CONFIGURAÇÃO DE IMAGENS E LOGOS
 # ==================================================
-# Links de imagem válidos fornecidos por você
 URL_LOGO_MULTITECH = "https://tse3.mm.bing.net/th/id/OIP.L8zPK2KlscAyAmNBldf3bgHaHa?pid=Api&P=0&h=180"
 URL_LOGO_HARMAN = "https://cdn.freelogovectors.net/wp-content/uploads/2020/03/harman-logo.png"
 
-# Definindo a logo da Harman como o ícone oficial do App. 
-# Links diretos de imagem são lidos de forma muito mais eficiente pelos PWAs dos celulares.
-URL_ICONE_NATIVO = URL_LOGO_HARMAN
+# Função para converter a logo local em string Base64 para forçar o ícone nativo no telemóvel
+def obter_icone_base64(caminho_imagem):
+    try:
+        with open(caminho_imagem, "rb") as image_file:
+            return "data:image/png;base64," + base64.b64encode(image_file.read()).decode()
+    except Exception:
+        return URL_LOGO_HARMAN  # Fallback caso o arquivo suma
 
-# CONFIGURAÇÃO DA PÁGINA (Deve ser estritamente o primeiro comando Streamlit)
+LINK_ICONE_FINAL = obter_icone_base64("logo.png")
+
+# CONFIGURAÇÃO DA PÁGINA (Estritamente o primeiro comando Streamlit)
 st.set_page_config(
     page_title="Gestão de Treinamentos - Harman 2026",
-    page_icon=URL_ICONE_NATIVO,  # Força a logo como ícone da aba e do atalho nativo
+    page_icon=LINK_ICONE_FINAL,  # Força a sua logo local na aba do navegador e no atalho
     layout="wide"
 )
 
-# Estilização profissional do ecossistema Harman/MultiTech
-st.markdown("""
+# Estilização profissional com RESPONSIVIDADE AUTOMÁTICA (Celular vs Computador)
+st.markdown(f"""
+<head>
+    <link rel="icon" type="image/png" href="{LINK_ICONE_FINAL}">
+    <link rel="apple-touch-icon" href="{LINK_ICONE_FINAL}">
+</head>
 <style>
-.main { background-color: #F4F7FA; }
-[data-testid="stSidebar"]{ background-color:#0A2D62; }
-[data-testid="stSidebar"] *{ color:white; }
-[data-testid="stAppViewBlockContainer"] { opacity: 1 !important; }
-div[data-testid="stBlock"] { opacity: 1 !important; }
-.stApp [data-testid="stDecoration"] { background-image: linear-gradient(90deg, #0A2D62, #2ECC71); }
-.metric-container {
+/* Esconde o menu superior direito (três pontinhos / engrenagem) e barra de deploy */
+#MainMenu {{visibility: hidden;}}
+header {{visibility: hidden;}}
+footer {{visibility: hidden;}}
+div[data-testid="stDecoration"] {{display: none;}}
+
+/* Ajusta o espaçamento do topo para o app ocupar a tela cheia no celular */
+.block-container {{
+    padding-top: 1rem !important;
+    padding-bottom: 1rem !important;
+}}
+
+/* Personalização de cores e identidade visual */
+.main {{ background-color: #F4F7FA; }}
+[data-testid="stSidebar"]{{ background-color:#0A2D62; }}
+[data-testid="stSidebar"] *{{ color:white; }}
+[data-testid="stAppViewBlockContainer"] {{ opacity: 1 !important; }}
+div[data-testid="stBlock"] {{ opacity: 1 !important; }}
+
+.metric-container {{
     background-color: white !important;
     padding: 20px 15px;
     border-radius: 10px;
@@ -41,10 +64,29 @@ div[data-testid="stBlock"] { opacity: 1 !important; }
     flex-direction: column;
     justify-content: center;
     margin-bottom: 15px;
-}
-.metric-title { color: #555555 !important; font-size: 14px; font-weight: 500; margin-bottom: 5px; }
-.metric-value { color: #0A2D62 !important; font-size: 28px; font-weight: bold; }
-h1, h2, h3 { color:#0A2D62; }
+}}
+.metric-title {{ color: #555555 !important; font-size: 14px; font-weight: 500; margin-bottom: 5px; }}
+.metric-value {{ color: #0A2D62 !important; font-size: 28px; font-weight: bold; }}
+h1, h2, h3 {{ color:#0A2D62; }}
+
+/* ==================================================
+   AJUSTE AUTOMÁTICO PARA CELULARES (Telas até 768px)
+   ================================================== */
+@media (max-width: 768px) {{
+    /* Força as imagens do cabeçalho a se comportarem bem no celular */
+    div[data-testid="stColumn"] img {{
+        max-width: 140px !important;
+        height: auto !important;
+        display: block;
+        margin-left: auto !important;
+        margin-right: auto !important;
+        padding-bottom: 10px;
+    }}
+    /* Centraliza os títulos e textos do cabeçalho no celular para não bugar */
+    div[data-testid="stColumn"] {{
+        text-align: center !important;
+    }}
+}}
 </style>
 """, unsafe_allow_html=True)
 
