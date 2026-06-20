@@ -2,18 +2,17 @@ import streamlit as st
 import psycopg2
 import pandas as pd
 from datetime import date, datetime, timedelta
-import plotly.express as px
 
 # =========================
-# CONFIGURACAO DA PAGINA
+# CONFIGURAÇÃO DA PÁGINA
 # =========================
 st.set_page_config(
-    page_title="Gestao de Treinamentos - Harman 2026",
+    page_title="Gestão de Treinamentos - Harman 2026",
     page_icon="https://i.ibb.co/6wD2Zfb/image.png",  # Link direto da sua logo combinada no ImgBB
     layout="wide"
 )
 
-# Estilizacao profissional
+# Estilização profissional
 st.markdown("""
 <style>
 .main { background-color: #F4F7FA; }
@@ -41,7 +40,7 @@ h1, h2, h3 { color:#0A2D62; }
 """, unsafe_allow_html=True)
 
 # =========================
-# CONEXAO COM BANCO EM NUVEM (POSTGRESQL)
+# CONEXÃO COM BANCO EM NUVEM (POSTGRESQL)
 # =========================
 @st.cache_resource(ttl=600)
 def conectar_nuvem():
@@ -62,13 +61,14 @@ def conectar_nuvem():
 conn = conectar_nuvem()
 cursor = conn.cursor()
 
-# Garantia da existencia das tabelas (incluindo a nova tabela de colaboradores)
+# Garantia da existência das tabelas
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS cursos (
     id SERIAL PRIMARY KEY,
     nome VARCHAR(100) UNIQUE,
     saldo_contratado INTEGER DEFAULT 0,
-    alunos_realizados INTEGER DEFAULT 0
+    alunos_realizados INTEGER DEFAULT 0,
+    responsavel_tecnico VARCHAR(100) DEFAULT ''
 );
 CREATE TABLE IF NOT EXISTS turmas (
     id SERIAL PRIMARY KEY,
@@ -97,10 +97,17 @@ CREATE TABLE IF NOT EXISTS colaboradores (
 """)
 conn.commit()
 
+# Adiciona coluna caso não exista em bancos mais antigos
+try:
+    cursor.execute("ALTER TABLE cursos ADD COLUMN IF NOT EXISTS responsavel_tecnico VARCHAR(100) DEFAULT '';")
+    conn.commit()
+except:
+    conn.rollback()
+
 # Popula cursos padrão se o banco estiver vazio
 cursor.execute("SELECT COUNT(*) FROM cursos;")
 if cursor.fetchone()[0] == 0:
-    cursor.execute("INSERT INTO cursos (nome, saldo_contratado) VALUES ('NR12', 0), ('Normas Técnicas de Solda', 0);")
+    cursor.execute("INSERT INTO cursos (nome, saldo_contratado, responsavel_tecnico) VALUES ('NR12', 0, 'MultiTech'), ('Normas Técnicas de Solda', 0, 'MultiTech');")
     conn.commit()
 
 # URLs das Logos
@@ -112,7 +119,7 @@ cursor.execute("SELECT nome FROM cursos ORDER BY nome;")
 lista_cursos_banco = [row[0] for row in cursor.fetchall()]
 
 # ==================================================
-# BARRA LATERAL (MENU SIDEBAR COM A ABA ALUNOS)
+# BARRA LATERAL (MENU SIDEBAR)
 # ==================================================
 with st.sidebar:
     st.markdown("<p style='text-align: center; font-size: 11px; color: #BACAD6; letter-spacing: 1px;'>PARCERIA COMERCIAL</p>", unsafe_allow_html=True)
@@ -121,13 +128,13 @@ with st.sidebar:
     with side_logo2: st.image(URL_LOGO_HARMAN, use_container_width=True)
         
     st.markdown("<br>", unsafe_allow_html=True)
-    menu = st.sidebar.radio("Menu de Navegacao", ["Dashboard", "Agendar Turma", "Controle de Saldo", "Gerenciar Alunos", "Historico e Reciclagens"])
+    menu = st.sidebar.radio("Menu de Navegação", ["Dashboard", "Agendar Turma", "Controle de Saldo", "Gerenciar Alunos", "Histórico e Reciclagens"])
 
-# Cabecalho principal
+# Cabeçalho principal
 head_col1, head_col2, head_col3 = st.columns([1, 5, 2])
 with head_col1: st.image(URL_LOGO_MULTITECH, width=75)
 with head_col2:
-    st.title("Sistema de Gestao de Treinamentos")
+    st.title("Sistema de Gestão de Treinamentos")
     st.caption("MultiTech Treinamentos Industriais - Cliente: Harman")
 with head_col3: st.image(URL_LOGO_HARMAN, width=160)
 st.markdown("<br>", unsafe_allow_html=True)
@@ -157,26 +164,17 @@ if menu == "Dashboard":
             st.markdown(f'<div class="metric-container"><div class="metric-title">{item["titulo"]}</div><div class="metric-value">{item["valor"]}</div></div>', unsafe_allow_html=True)
 
     st.divider()
-    col_grafico1, col_grafico2 = st.columns([3, 2])
-
-    with col_grafico1:
-        st.subheader("Resumo de Saldos Oficiais por Curso")
-        st.dataframe(cursos[["nome", "saldo_contratado", "alunos_realizados", "saldo_atual"]], use_container_width=True, hide_index=True)
-
-    with col_grafico2:
-        st.subheader("Relacao Global: Realizados x Disponiveis")
-        saldo_grafico = max(0, int(saldo_geral))
-        dados_pizza = pd.DataFrame({
-            "Status": ["Alunos Ja Treinados", "Saldo Geral Disponivel (Vagas)"],
-            "Quantidade": [int(total_alunos), saldo_grafico]
-        })
-        fig = px.pie(dados_pizza, values="Quantidade", names="Status", color_discrete_sequence=["#0A2D62", "#2ECC71"], hole=0.3)
-        fig.update_layout(margin=dict(l=20, r=20, t=20, b=20), height=250)
-        st.plotly_chart(fig, use_container_width=True)
+    
+    st.subheader("Resumo de Saldos Oficiais por Curso")
+    
+    # Exibição da tabela renomeada sem underlines
+    df_dashboard = cursos[["nome", "saldo_contratado", "alunos_realizados", "saldo_atual"]].copy()
+    df_dashboard.columns = ["Nome do Curso", "Saldo Contratado", "Alunos Realizados", "Saldo Atual"]
+    st.dataframe(df_dashboard, use_container_width=True, hide_index=True)
 
     negativos = cursos[cursos["saldo_atual"] < 0]
     for _, row in negativos.iterrows():
-        st.error(f"Atencao: O curso {row['nome']} esta com saldo negativo ({row['saldo_atual']} vagas). Necessita de nova recarga urgente!")
+        st.error(f"Atenção: O curso {row['nome']} está com saldo negativo ({row['saldo_atual']} vagas). Necessita de nova recarga urgente!")
 
 # ==================================================
 # AGENDAR TURMA
@@ -219,11 +217,12 @@ elif menu == "Controle de Saldo":
     cursos = pd.read_sql("SELECT * FROM cursos", conn)
     cursos["saldo_atual"] = cursos["saldo_contratado"] - cursos["alunos_realizados"]
     
+    # Exibição dos blocos de cursos (Sem gráficos)
     col_c1, col_c2 = st.columns(2)
     for idx, row in cursos.iterrows():
         alvo_col = col_c1 if idx % 2 == 0 else col_c2
         with alvo_col:
-            status_texto = "POSITIVO (Disponivel)" if row['saldo_atual'] >= 0 else "NEGATIVO (Excedido)"
+            status_texto = "POSITIVO (Disponível)" if row['saldo_atual'] >= 0 else "NEGATIVO (Excedido)"
             st.markdown(f"""
             <div style="background-color: white; padding: 15px; border-radius: 8px; border: 1px solid #E0E0E0; margin-bottom: 15px;">
                 <h4 style="margin: 0; color: #0A2D62;">{row['nome']}</h4>
@@ -234,49 +233,56 @@ elif menu == "Controle de Saldo":
             </div>
             """, unsafe_allow_html=True)
             
-    if not cursos.empty:
-        df_melted = pd.melt(cursos, id_vars=['nome'], value_vars=['saldo_contratado', 'alunos_realizados', 'saldo_atual'],
-                            var_name='Metrica', value_name='Vagas')
-        df_melted['Metrica'] = df_melted['Metrica'].replace({
-            'saldo_contratado': 'Contratado Total',
-            'alunos_realizados': 'Alunos Treinados',
-            'saldo_atual': 'Saldo Restante'
-        })
-        fig_saldo = px.bar(df_melted, x='nome', y='Vagas', color='Metrica', barmode='group',
-                           color_discrete_sequence=["#0A2D62", "#34495E", "#2ECC71"],
-                           labels={'nome': 'Curso', 'Vagas': 'Quantidade de Vagas'})
-        fig_saldo.update_layout(height=350, margin=dict(l=20, r=20, t=20, b=20))
-        st.plotly_chart(fig_saldo, use_container_width=True)
-
     st.divider()
-    st.subheader("Adicionar Nova Recarga ou Novo Curso")
     
-    modo_curso = st.radio("Tipo de Cadastro", ["Curso Existente", "Cadastrar Novo Curso"])
-    if modo_curso == "Curso Existente":
-        curso_recarga = st.selectbox("Selecionar Curso para Recarga", lista_cursos_banco)
-    else:
-        curso_recarga = st.text_input("Nome do Novo Curso").strip()
-        
-    qtd = st.number_input("Quantidade Contratada", min_value=1, max_value=10000, value=10)
-    obs = st.text_input("Observacao / Numero do Pedido")
+    # Abas para separar a Recarga de Vagas da criação de um Novo Curso
+    tab_recarga, tab_novo_curso = st.tabs(["Adicionar Nova Recarga de Vagas", "Cadastrar Novo Curso"])
+    
+    with tab_recarga:
+        st.markdown("### Adicionar Vagas a um Curso Existente")
+        if lista_cursos_banco:
+            curso_recarga = st.selectbox("Selecionar Curso para Recarga", lista_cursos_banco)
+            qtd = st.number_input("Quantidade Contratada (Vagas)", min_value=1, max_value=10000, value=10, key="qtd_recarga")
+            obs = st.text_input("Observação / Número do Pedido", key="obs_recarga")
 
-    if st.button("Confirmar Entrada de Vagas"):
-        if not curso_recarga:
-            st.error("O nome do curso não pode ser vazio.")
+            if st.button("Confirmar Entrada de Vagas"):
+                cursor.execute("""
+                    UPDATE cursos SET saldo_contratado = saldo_contratado + %s WHERE nome = %s;
+                """, (qtd, curso_recarga))
+                cursor.execute("INSERT INTO movimentacoes (data, curso, tipo, quantidade, observacao) VALUES (%s, %s, 'RECARGA', %s, %s);", (date.today(), curso_recarga, qtd, obs))
+                conn.commit()
+                st.success(f"Recarga de {qtd} vagas aplicada com sucesso no curso {curso_recarga}!")
+                st.rerun()
         else:
-            cursor.execute("""
-                INSERT INTO cursos (nome, saldo_contratado, alunos_realizados) 
-                VALUES (%s, %s, 0) 
-                ON CONFLICT (nome) 
-                DO UPDATE SET saldo_contratado = cursos.saldo_contratado + EXCLUDED.saldo_contratado;
-            """, (curso_recarga, qtd))
-            cursor.execute("INSERT INTO movimentacoes (data, curso, tipo, quantidade, observacao) VALUES (%s, %s, 'RECARGA', %s, %s);", (date.today(), curso_recarga, qtd, obs))
-            conn.commit()
-            st.success("Saldo atualizado com sucesso na Nuvem!")
-            st.rerun()
+            st.info("Nenhum curso cadastrado para receber recargas.")
+            
+    with tab_novo_curso:
+        st.markdown("### Inserir Novo Curso na Grade")
+        novo_curso_nome = st.text_input("Nome do Novo Curso").strip()
+        resp_tecnico = st.text_input("Instrutor / Responsável Técnico").strip()
+        qtd_inicial = st.number_input("Quantidade Contratada Inicial", min_value=0, max_value=10000, value=0, key="qtd_novo")
+        obs_novo = st.text_input("Observação / Número do Pedido", key="obs_novo")
+
+        if st.button("Cadastrar Novo Curso"):
+            if not novo_curso_nome:
+                st.error("O nome do curso não pode ser vazio.")
+            else:
+                try:
+                    cursor.execute("""
+                        INSERT INTO cursos (nome, saldo_contratado, alunos_realizados, responsavel_tecnico) 
+                        VALUES (%s, %s, 0, %s)
+                        ON CONFLICT (nome) DO NOTHING;
+                    """, (novo_curso_nome, qtd_inicial, resp_tecnico))
+                    if qtd_inicial > 0:
+                        cursor.execute("INSERT INTO movimentacoes (data, curso, tipo, quantidade, observacao) VALUES (%s, %s, 'RECARGA', %s, %s);", (date.today(), novo_curso_nome, qtd_inicial, obs_novo))
+                    conn.commit()
+                    st.success(f"Curso '{novo_curso_nome}' com o Responsável Técnico '{resp_tecnico}' cadastrado com sucesso!")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Erro ao cadastrar curso: {e}")
 
 # ==================================================
-# NOVA ABA: GERENCIAR ALUNOS (COLABORADORES HARMAN)
+# GERENCIAR ALUNOS
 # ==================================================
 elif menu == "Gerenciar Alunos":
     st.subheader("Controle de Alunos / Colaboradores Harman")
@@ -323,7 +329,6 @@ elif menu == "Gerenciar Alunos":
         if not df_colab.empty:
             st.dataframe(df_colab, use_container_width=True, hide_index=True)
             
-            # Botão para deletar colaborador se necessário
             st.divider()
             mat_excluir = st.text_input("Digite a Matrícula do funcionário que deseja remover:")
             if st.button("Remover Funcionário"):
@@ -340,12 +345,11 @@ elif menu == "Gerenciar Alunos":
             st.info("Nenhum colaborador registrado ainda.")
 
 # ==================================================
-# HISTORICO E RECICLAGENS (COM SUB-ABAS)
+# HISTÓRICO E RECICLAGENS
 # ==================================================
-elif menu == "Historico e Reciclagens":
+elif menu == "Histórico e Reciclagens":
     st.subheader("Histórico Geral de Treinamentos e Reciclagens")
     
-    # Criando sub-abas para embutir a atualização de status aqui dentro
     tab_hist, tab_status_update = st.tabs(["Histórico Geral e Vencimentos", "Atualizar Status de Agendamentos"])
     
     with tab_status_update:
@@ -396,7 +400,7 @@ elif menu == "Historico e Reciclagens":
             df['Dias Restantes'] = (df['Data de Vencimento'] - data_hoje).dt.days
 
             def avaliar_reciclagem(dias):
-                if dias < 0: return "VENCIDO (Agendar Atualizacao)"
+                if dias < 0: return "VENCIDO (Agendar Atualização)"
                 elif dias <= 60: return "EXPIRANDO (Providenciar Reciclagem)"
                 return "Regular"
 
@@ -404,20 +408,19 @@ elif menu == "Historico e Reciclagens":
             df['data'] = df['data'].dt.strftime('%d/%m/%Y')
             df['Data de Vencimento'] = df['Data de Vencimento'].dt.strftime('%d/%m/%Y')
 
-            st.dataframe(
-                df[["id", "data", "cliente", "curso", "alunos", "status", "Data de Vencimento", "Status Reciclagem"]],
-                use_container_width=True,
-                hide_index=True
-            )
+            df_exibir = df[["id", "data", "cliente", "curso", "alunos", "status", "Data de Vencimento", "Status Reciclagem"]].copy()
+            df_exibir.columns = ["ID", "Data", "Cliente", "Curso", "Alunos", "Status", "Data de Vencimento", "Status Reciclagem"]
+            
+            st.dataframe(df_exibir, use_container_width=True, hide_index=True)
 
             excel_file = "historico_reciclagem_harman.xlsx"
             df.to_excel(excel_file, index=False)
             with open(excel_file, "rb") as arquivo:
-                st.download_button("Exportar Relatorio para Excel", arquivo, file_name=excel_file, key="btn_excel")
+                st.download_button("Exportar Relatório para Excel", arquivo, file_name=excel_file, key="btn_excel")
                 
             st.divider()
             
-            st.subheader("Painel de Exclusao de Turmas")
+            st.subheader("Painel de Exclusão de Turmas")
             id_para_apagar = st.number_input("Digite o ID da turma que deseja apagar", min_value=1, step=1, key="id_delete_turma")
             
             if st.button("Apagar Turma do Registro"):
@@ -433,6 +436,6 @@ elif menu == "Historico e Reciclagens":
                     st.success(f"Turma com ID {id_para_apagar} foi removida!")
                     st.rerun()
                 else:
-                    st.error("ID de turma nao encontrado no banco de dados.")
+                    st.error("ID de turma não encontrado no banco de dados.")
         else:
             st.warning("Nenhuma turma ativa registrada.")
