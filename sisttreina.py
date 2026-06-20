@@ -7,7 +7,6 @@ from datetime import date, datetime, timedelta
 # ==================================================
 # CONFIGURAÇÃO DE IMAGENS E LOGOS
 # ==================================================
-URL_LOGO_MULTITECH = "https://tse3.mm.bing.net/th/id/OIP.L8zPK2KlscAyAmNBldf3bgHaHa?pid=Api&P=0&h=180"
 URL_LOGO_HARMAN = "https://cdn.freelogovectors.net/wp-content/uploads/2020/03/harman-logo.png"
 
 def obter_icone_base64(caminho_imagem):
@@ -26,30 +25,26 @@ st.set_page_config(
     layout="wide"
 )
 
-# Estilização profissional e Responsividade sem comentários para evitar vazamento de texto
-st.markdown(f"""
-<head>
-    <link rel="icon" type="image/png" href="{LINK_ICONE_FINAL}">
-    <link rel="apple-touch-icon" href="{LINK_ICONE_FINAL}">
-</head>
+# Estilização sem string formatada (f-string) para impedir vazamento de chaves CSS
+st.markdown("""
 <style>
-#MainMenu {{visibility: hidden;}}
-header {{visibility: hidden;}}
-footer {{visibility: hidden;}}
-div[data-testid="stDecoration"] {{display: none;}}
+#MainMenu {visibility: hidden;}
+header {visibility: hidden;}
+footer {visibility: hidden;}
+div[data-testid="stDecoration"] {display: none;}
 
-.block-container {{
+.block-container {
     padding-top: 1rem !important;
     padding-bottom: 1rem !important;
-}}
+}
 
-.main {{ background-color: #F4F7FA; }}
-[data-testid="stSidebar"]{{ background-color:#0A2D62; }}
-[data-testid="stSidebar"] *{{ color:white; }}
-[data-testid="stAppViewBlockContainer"] {{ opacity: 1 !important; }}
-div[data-testid="stBlock"] {{ opacity: 1 !important; }}
+.main { background-color: #F4F7FA; }
+[data-testid="stSidebar"]{ background-color:#0A2D62; }
+[data-testid="stSidebar"] *{ color:white; }
+[data-testid="stAppViewBlockContainer"] { opacity: 1 !important; }
+div[data-testid="stBlock"] { opacity: 1 !important; }
 
-.metric-container {{
+.metric-container {
     background-color: white !important;
     padding: 20px 15px;
     border-radius: 10px;
@@ -60,24 +55,24 @@ div[data-testid="stBlock"] {{ opacity: 1 !important; }}
     flex-direction: column;
     justify-content: center;
     margin-bottom: 15px;
-}}
-.metric-title {{ color: #555555 !important; font-size: 14px; font-weight: 500; margin-bottom: 5px; }}
-.metric-value {{ color: #0A2D62 !important; font-size: 28px; font-weight: bold; }}
-h1, h2, h3 {{ color:#0A2D62; }}
+}
+.metric-title { color: #555555 !important; font-size: 14px; font-weight: 500; margin-bottom: 5px; }
+.metric-value { color: #0A2D62 !important; font-size: 28px; font-weight: bold; }
+h1, h2, h3 { color:#0A2D62; }
 
-@media (max-width: 768px) {{
-    div[data-testid="stColumn"] img {{
+@media (max-width: 768px) {
+    div[data-testid="stColumn"] img {
         max-width: 140px !important;
         height: auto !important;
         display: block;
         margin-left: auto !important;
         margin-right: auto !important;
         padding-bottom: 10px;
-    }}
-    div[data-testid="stColumn"] {{
+    }
+    div[data-testid="stColumn"] {
         text-align: center !important;
-    }}
-}}
+    }
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -179,14 +174,10 @@ except Exception:
 with st.sidebar:
     st.markdown("<p style='text-align: center; font-size: 11px; color: #BACAD6; letter-spacing: 1px;'>PARCERIA COMERCIAL</p>", unsafe_allow_html=True)
     
-    # Tentativa de carregar a logo local que você adicionou no repositório
     try:
         st.image("logo.png", use_container_width=True)
     except Exception:
-        try:
-            st.image(URL_LOGO_MULTITECH, use_container_width=True)
-        except Exception:
-            pass
+        pass
         
     st.markdown("<br>", unsafe_allow_html=True)
     menu = st.sidebar.radio("Menu de Navegação", ["Dashboard", "Agendar Turma", "Controle de Saldo", "Gerenciar Alunos", "Histórico e Reciclagens"])
@@ -197,10 +188,7 @@ with head_col1:
     try:
         st.image("logo.png", width=110)
     except Exception:
-        try:
-            st.image(URL_LOGO_MULTITECH, width=110)
-        except Exception:
-            pass
+        pass
 with head_col2:
     st.title("Sistema de Gestão de Treinamentos")
     st.caption("MultiTech Treinamentos Industriais — Cliente: Harman")
@@ -428,7 +416,7 @@ elif menu == "Histórico e Reciclagens":
                             v_curso, v_alunos = registro
                             cur.execute("UPDATE turmas SET status = 'Realizada' WHERE id = %s;", (id_selecionado,))
                             cur.execute("UPDATE cursos SET alunos_realizados = alunos_realizados + %s WHERE nome = %s;", (v_alunos, v_curso))
-                            st.success("Status atualizado!")
+                            st.success("Status updated!")
                             st.rerun()
                 except Exception as e:
                     st.error(f"Erro: {e}")
