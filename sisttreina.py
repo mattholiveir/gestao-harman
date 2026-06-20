@@ -8,7 +8,7 @@ from datetime import date, datetime, timedelta
 # =========================
 st.set_page_config(
     page_title="Gestão de Treinamentos - Harman 2026",
-    page_icon="https://i.ibb.co/6W4wWwz/image.png",
+    page_icon="https://raw.githubusercontent.com/tushar-nitk/harman-multitech-assets/main/logo.png",
     layout="wide"
 )
 
@@ -39,7 +39,7 @@ h1, h2, h3 { color:#0A2D62; }
 </style>
 """, unsafe_allow_html=True)
 
-# Button to clean state if something gets stuck
+# Botão na barra lateral para limpar estado caso algo trave
 if st.sidebar.button("♻️ Limpar Cache e Forçar Reinício"):
     st.cache_resource.clear()
     st.rerun()
@@ -137,8 +137,8 @@ def inicializar_banco(conexao):
 # Executa rotina de segurança
 inicializar_banco(conn)
 
-# URL da Nova Logo Combinada MultiTech + Harman
-URL_LOGO_COMBINADA = "https://i.ibb.co/6W4wWwz/image.png"
+# URL da Nova Logo Combinada MultiTech + Harman (Atualizada e Estável no GitHub)
+URL_LOGO_COMBINADA = "https://raw.githubusercontent.com/tushar-nitk/harman-multitech-assets/main/logo.png"
 
 # BUSCA DINÂMICA DE CURSOS
 with conn.cursor() as cursor_limpo:
