@@ -1,38 +1,28 @@
 import streamlit as st
 import psycopg2
 import pandas as pd
-import base64
 from datetime import date, datetime, timedelta
 
 # ==================================================
 # CONFIGURAÇÃO DE IMAGENS E LOGOS
 # ==================================================
+# Links de imagem válidos fornecidos por você
 URL_LOGO_MULTITECH = "https://tse3.mm.bing.net/th/id/OIP.L8zPK2KlscAyAmNBldf3bgHaHa?pid=Api&P=0&h=180"
 URL_LOGO_HARMAN = "https://cdn.freelogovectors.net/wp-content/uploads/2020/03/harman-logo.png"
 
-# Função para converter a logo local em string Base64 para forçar o ícone nativo no telemóvel
-def obter_icone_base64(caminho_imagem):
-    try:
-        with open(caminho_imagem, "rb") as image_file:
-            return "data:image/png;base64," + base64.b64encode(image_file.read()).decode()
-    except Exception:
-        return URL_LOGO_HARMAN  # Fallback caso o arquivo suma
+# Definindo a logo da Harman como o ícone oficial do App. 
+# Links diretos de imagem são lidos de forma muito mais eficiente pelos PWAs dos celulares.
+URL_ICONE_NATIVO = URL_LOGO_HARMAN
 
-LINK_ICONE_FINAL = obter_icone_base64("logo.png")
-
-# CONFIGURAÇÃO DA PÁGINA
+# CONFIGURAÇÃO DA PÁGINA (Deve ser estritamente o primeiro comando Streamlit)
 st.set_page_config(
     page_title="Gestão de Treinamentos - Harman 2026",
-    page_icon=LINK_ICONE_FINAL,  # Força a sua logo local na aba do navegador e no atalho
+    page_icon=URL_ICONE_NATIVO,  # Força a logo como ícone da aba e do atalho nativo
     layout="wide"
 )
 
-# Estilização profissional e injeção de Meta Tags para forçar o ícone no PWA (Mobile)
-st.markdown(f"""
-<head>
-    <link rel="icon" type="image/png" href="{LINK_ICONE_FINAL}">
-    <link rel="apple-touch-icon" href="{LINK_ICONE_FINAL}">
-</head>
+# Estilização profissional do ecossistema Harman/MultiTech
+st.markdown("""
 <style>
 .main { background-color: #F4F7FA; }
 [data-testid="stSidebar"]{ background-color:#0A2D62; }
