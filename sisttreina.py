@@ -6,9 +6,10 @@ from datetime import date, datetime, timedelta
 # =========================
 # CONFIGURAÇÃO DA PÁGINA
 # =========================
+# Adicionado quebra de cache (?v=2) direto na URL da imagem
 st.set_page_config(
     page_title="Gestão de Treinamentos - Harman 2026",
-    page_icon="https://i.ibb.co/B2qyC90/MTH.png",
+    page_icon="https://i.ibb.co/B2qyC90/MTH.png?v=2",
     layout="wide"
 )
 
@@ -58,7 +59,6 @@ def conectar_nuvem():
             password=cfg["password"],
             port=int(cfg["port"])
         )
-        # Força o modo de commit automático para evitar transações presas em falha
         conexao.autocommit = True
         return conexao
     except Exception as e:
@@ -70,7 +70,6 @@ conn = conectar_nuvem()
 # Inicialização limpa por blocos separados
 def inicializar_banco(conexao):
     with conexao.cursor() as cur:
-        # Criação de cada tabela de forma totalmente isolada
         try:
             cur.execute("""
             CREATE TABLE IF NOT EXISTS cursos (
@@ -126,7 +125,6 @@ def inicializar_banco(conexao):
         except Exception:
             pass
 
-        # Inserção segura de dados padrão
         try:
             cur.execute("SELECT COUNT(*) FROM cursos;")
             if cur.fetchone()[0] == 0:
@@ -134,11 +132,10 @@ def inicializar_banco(conexao):
         except Exception:
             pass
 
-# Executa rotina de segurança
 inicializar_banco(conn)
 
-# URL DEFINITIVA E DIRETA DO SEU LOGO EXTRAÍDO DA IMAGEM
-URL_LOGO_COMBINADA = "https://i.ibb.co/B2qyC90/MTH.png"
+# URL Corrigida com quebra de cache forçada para o Streamlit Cloud
+URL_LOGO_COMBINADA = "https://i.ibb.co/B2qyC90/MTH.png?v=2"
 
 # BUSCA DINÂMICA DE CURSOS
 with conn.cursor() as cursor_limpo:
