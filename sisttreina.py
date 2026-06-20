@@ -7,8 +7,7 @@ from datetime import date, datetime, timedelta
 # CONFIGURAÇÃO DE HOSPEDAGEM INTERNA DA IMAGEM
 # ==================================================
 # ATENÇÃO: Substitua 'seu-usuario-do-github' pelo seu nome de usuário real do GitHub abaixo:
-URL_LOGO_COMBINADA = "https://raw.githubusercontent.com/seu-usuario-do-github/gestao-harman/Oprincipalfilial/logo.png"
-
+URL_LOGO_COMBINADA = "https://raw.githubusercontent.com/mattholiveiro/gestao-harman/principal/logo.png"
 # CONFIGURAÇÃO DA PÁGINA
 st.set_page_config(
     page_title="Gestão de Treinamentos - Harman 2026",
