@@ -8,7 +8,7 @@ from datetime import date, datetime, timedelta
 # =========================
 st.set_page_config(
     page_title="Gestão de Treinamentos - Harman 2026",
-    page_icon="https://i.ibb.co/6W4wWwz/image.png",  # Link direto da sua logo combinada Harman + Multitech
+    page_icon="https://i.ibb.co/6W4wWwz/image.png",
     layout="wide"
 )
 
@@ -39,10 +39,15 @@ h1, h2, h3 { color:#0A2D62; }
 </style>
 """, unsafe_allow_html=True)
 
+# Button to clean state if something gets stuck
+if st.sidebar.button("♻️ Limpar Cache e Forçar Reinício"):
+    st.cache_resource.clear()
+    st.rerun()
+
 # =========================
 # CONEXÃO COM BANCO EM NUVEM (SUPABASE / POSTGRESQL)
 # =========================
-@st.cache_resource(ttl=600)
+@st.cache_resource(ttl=300)
 def conectar_nuvem():
     try:
         cfg = st.secrets["postgres"]
@@ -53,6 +58,8 @@ def conectar_nuvem():
             password=cfg["password"],
             port=int(cfg["port"])
         )
+        # Força o modo de commit automático para evitar transações presas em falha
+        conexao.autocommit = True
         return conexao
     except Exception as e:
         st.error(f"Erro ao conectar ao banco de dados em nuvem: {e}")
@@ -60,11 +67,11 @@ def conectar_nuvem():
 
 conn = conectar_nuvem()
 
-# Inicialização isolada e segura do banco de dados (Evita InFailedSqlTransaction)
+# Inicialização limpa por blocos separados
 def inicializar_banco(conexao):
     with conexao.cursor() as cur:
+        # Criação de cada tabela de forma totalmente isolada
         try:
-            # 1. Criação das tabelas base
             cur.execute("""
             CREATE TABLE IF NOT EXISTS cursos (
                 id SERIAL PRIMARY KEY,
@@ -74,6 +81,10 @@ def inicializar_banco(conexao):
                 responsavel_tecnico VARCHAR(100) DEFAULT ''
             );
             """)
+        except Exception:
+            pass
+
+        try:
             cur.execute("""
             CREATE TABLE IF NOT EXISTS turmas (
                 id SERIAL PRIMARY KEY,
@@ -85,6 +96,10 @@ def inicializar_banco(conexao):
                 status VARCHAR(50)
             );
             """)
+        except Exception:
+            pass
+
+        try:
             cur.execute("""
             CREATE TABLE IF NOT EXISTS movimentacoes (
                 id SERIAL PRIMARY KEY,
@@ -95,6 +110,10 @@ def inicializar_banco(conexao):
                 observacao TEXT
             );
             """)
+        except Exception:
+            pass
+
+        try:
             cur.execute("""
             CREATE TABLE IF NOT EXISTS colaboradores (
                 matricula VARCHAR(50) PRIMARY KEY,
@@ -104,43 +123,30 @@ def inicializar_banco(conexao):
                 divisao_nome VARCHAR(50)
             );
             """)
-            conexao.commit()
-        except Exception as e:
-            conexao.rollback()
-            st.error(f"Erro estrutural ao criar tabelas: {e}")
-
-        try:
-            # 2. Atualização de colunas legadas de forma segura
-            cur.execute("ALTER TABLE cursos ADD COLUMN IF NOT EXISTS responsavel_tecnico VARCHAR(100) DEFAULT '';")
-            conexao.commit()
         except Exception:
-            conexao.rollback()
+            pass
 
+        # Inserção segura de dados padrão
         try:
-            # 3. Inserção de dados iniciais padrão
             cur.execute("SELECT COUNT(*) FROM cursos;")
             if cur.fetchone()[0] == 0:
                 cur.execute("INSERT INTO cursos (nome, saldo_contratado, responsavel_tecnico) VALUES ('NR12', 0, 'MultiTech'), ('Normas Técnicas de Solda', 0, 'MultiTech');")
-                conexao.commit()
         except Exception:
-            conexao.rollback()
+            pass
 
-# Executa a limpeza estrutural
+# Executa rotina de segurança
 inicializar_banco(conn)
-
-# Reabre um cursor limpo para a aplicação principal
-cursor = conn.cursor()
 
 # URL da Nova Logo Combinada MultiTech + Harman
 URL_LOGO_COMBINADA = "https://i.ibb.co/6W4wWwz/image.png"
 
 # BUSCA DINÂMICA DE CURSOS
-try:
-    cursor.execute("SELECT nome FROM cursos ORDER BY nome;")
-    lista_cursos_banco = [row[0] for row in cursor.fetchall()]
-except Exception:
-    conn.rollback()
-    lista_cursos_banco = []
+with conn.cursor() as cursor_limpo:
+    try:
+        cursor_limpo.execute("SELECT nome FROM cursos ORDER BY nome;")
+        lista_cursos_banco = [row[0] for row in cursor_limpo.fetchall()]
+    except Exception:
+        lista_cursos_banco = []
 
 # ==================================================
 # BARRA LATERAL (MENU SIDEBAR)
@@ -170,8 +176,9 @@ if menu == "Dashboard":
     total_alunos = cursos["alunos_realizados"].sum()
     saldo_geral = cursos["saldo_atual"].sum()
     
-    cursor.execute("SELECT COUNT(*) FROM turmas;")
-    total_turmas = cursor.fetchone()[0]
+    with conn.cursor() as cur:
+        cur.execute("SELECT COUNT(*) FROM turmas;")
+        total_turmas = cur.fetchone()[0]
 
     c1, c2, c3, c4 = st.columns(4)
     metricas_dados = [
@@ -209,8 +216,10 @@ elif menu == "Agendar Turma":
     if lista_cursos_banco:
         curso = st.selectbox("Curso", lista_cursos_banco)
 
-        cursor.execute("SELECT saldo_contratado, alunos_realizados FROM cursos WHERE nome = %s", (curso,))
-        res_curso = cursor.fetchone()
+        with conn.cursor() as cur:
+            cur.execute("SELECT saldo_contratado, alunos_realizados FROM cursos WHERE nome = %s", (curso,))
+            res_curso = cur.fetchone()
+        
         saldo_atual = (res_curso[0] - res_curso[1]) if res_curso else 0
         st.info(f"Saldo disponível para este curso: {saldo_atual} vagas")
 
@@ -218,12 +227,10 @@ elif menu == "Agendar Turma":
         status = st.selectbox("Status", ["Agendada", "Realizada"])
 
         if st.button("Salvar Turma"):
-            cursor.execute("INSERT INTO turmas (data, cliente, curso, instrutor, alunos, status) VALUES (%s,%s,%s,%s,%s,%s);", (data, cliente, curso, instrutor, alunos, status))
-            if status == "Realizada":
-                cursor.execute("""
-                    UPDATE cursos SET alunos_realizados = alunos_realizados + %s WHERE nome = %s;
-                """, (alunos, curso))
-            conn.commit()
+            with conn.cursor() as cur:
+                cur.execute("INSERT INTO turmas (data, cliente, curso, instrutor, alunos, status) VALUES (%s,%s,%s,%s,%s,%s);", (data, cliente, curso, instrutor, alunos, status))
+                if status == "Realizada":
+                    cur.execute("UPDATE cursos SET alunos_realizados = alunos_realizados + %s WHERE nome = %s;", (alunos, curso))
             st.success("Turma cadastrada com sucesso e salva na Nuvem!")
             st.rerun()
     else:
@@ -265,9 +272,9 @@ elif menu == "Controle de Saldo":
             obs = st.text_input("Observação / Número do Pedido", key="obs_recarga")
 
             if st.button("Confirmar Entrada de Vagas"):
-                cursor.execute("UPDATE cursos SET saldo_contratado = saldo_contratado + %s WHERE nome = %s;", (qtd, curso_recarga))
-                cursor.execute("INSERT INTO movimentacoes (data, curso, tipo, quantidade, observacao) VALUES (%s, %s, 'RECARGA', %s, %s);", (date.today(), curso_recarga, qtd, obs))
-                conn.commit()
+                with conn.cursor() as cur:
+                    cur.execute("UPDATE cursos SET saldo_contratado = saldo_contratado + %s WHERE nome = %s;", (qtd, curso_recarga))
+                    cur.execute("INSERT INTO movimentacoes (data, curso, tipo, quantidade, observacao) VALUES (%s, %s, 'RECARGA', %s, %s);", (date.today(), curso_recarga, qtd, obs))
                 st.success(f"Recarga de {qtd} vagas aplicada com sucesso no curso {curso_recarga}!")
                 st.rerun()
         else:
@@ -285,14 +292,14 @@ elif menu == "Controle de Saldo":
                 st.error("O nome do curso não pode ser vazio.")
             else:
                 try:
-                    cursor.execute("""
-                        INSERT INTO cursos (nome, saldo_contratado, alunos_realizados, responsavel_tecnico) 
-                        VALUES (%s, %s, 0, %s)
-                        ON CONFLICT (nome) DO NOTHING;
-                    """, (novo_curso_nome, qtd_inicial, resp_tecnico))
-                    if qtd_inicial > 0:
-                        cursor.execute("INSERT INTO movimentacoes (data, curso, tipo, quantidade, observacao) VALUES (%s, %s, 'RECARGA', %s, %s);", (date.today(), novo_curso_nome, qtd_inicial, obs_novo))
-                    conn.commit()
+                    with conn.cursor() as cur:
+                        cur.execute("""
+                            INSERT INTO cursos (nome, saldo_contratado, alunos_realizados, responsavel_tecnico) 
+                            VALUES (%s, %s, 0, %s)
+                            ON CONFLICT (nome) DO NOTHING;
+                        """, (novo_curso_nome, qtd_inicial, resp_tecnico))
+                        if qtd_inicial > 0:
+                            cur.execute("INSERT INTO movimentacoes (data, curso, tipo, quantidade, observacao) VALUES (%s, %s, 'RECARGA', %s, %s);", (date.today(), novo_curso_nome, qtd_inicial, obs_novo))
                     st.success(f"Curso '{novo_curso_nome}' com o Responsável Técnico '{resp_tecnico}' cadastrado com sucesso!")
                     st.rerun()
                 except Exception as e:
@@ -326,14 +333,14 @@ elif menu == "Gerenciar Alunos":
                 st.error("Matrícula e Nome Completo são campos obrigatórios.")
             else:
                 try:
-                    cursor.execute("""
-                        INSERT INTO colaboradores (matricula, nome_completo, funcao, divisao_codigo, divisao_nome)
-                        VALUES (%s, %s, %s, %s, %s)
-                        ON CONFLICT (matricula) 
-                        DO UPDATE SET nome_completo = EXCLUDED.nome_completo, funcao = EXCLUDED.funcao, 
-                                      divisao_codigo = EXCLUDED.divisao_codigo, divisao_nome = EXCLUDED.divisao_nome;
-                    """, (matricula, nome_completo, funcao, div_codigo, div_nome))
-                    conn.commit()
+                    with conn.cursor() as cur:
+                        cur.execute("""
+                            INSERT INTO colaboradores (matricula, nome_completo, funcao, divisao_codigo, divisao_nome)
+                            VALUES (%s, %s, %s, %s, %s)
+                            ON CONFLICT (matricula) 
+                            DO UPDATE SET nome_completo = EXCLUDED.nome_completo, funcao = EXCLUDED.funcao, 
+                                          divisao_codigo = EXCLUDED.divisao_codigo, divisao_nome = EXCLUDED.divisao_nome;
+                        """, (matricula, nome_completo, funcao, div_codigo, div_nome))
                     st.success(f"Colaborador {nome_completo} registrado com sucesso!")
                     st.rerun()
                 except Exception as error:
@@ -349,15 +356,15 @@ elif menu == "Gerenciar Alunos":
             st.divider()
             mat_excluir = st.text_input("Digite a Matrícula do funcionário que deseja remover:")
             if st.button("Remover Funcionário"):
-                cursor.execute("SELECT nome_completo FROM colaboradores WHERE matricula = %s", (mat_excluir,))
-                colab_existe = cursor.fetchone()
-                if colab_existe:
-                    cursor.execute("DELETE FROM colaboradores WHERE matricula = %s", (mat_excluir,))
-                    conn.commit()
-                    st.success(f"Colaborador {colab_existe[0]} removido.")
-                    st.rerun()
-                else:
-                    st.error("Matrícula não cadastrada.")
+                with conn.cursor() as cur:
+                    cur.execute("SELECT nome_completo FROM colaboradores WHERE matricula = %s", (mat_excluir,))
+                    colab_existe = cur.fetchone()
+                    if colab_existe:
+                        cur.execute("DELETE FROM colaboradores WHERE matricula = %s", (mat_excluir,))
+                        st.success(f"Colaborador {colab_existe[0]} removido.")
+                        st.rerun()
+                    else:
+                        st.error("Matrícula não cadastrada.")
         else:
             st.info("Nenhum colaborador registrado ainda.")
 
@@ -383,21 +390,18 @@ elif menu == "Histórico e Reciclagens":
             id_selecionado = st.number_input("Digite o ID da turma concluída:", min_value=1, step=1, key="id_update_status")
                 
             if st.button("Confirmar Realização da Turma"):
-                cursor.execute("SELECT curso, alunos FROM turmas WHERE id = %s AND status = 'Agendada';", (id_selecionado,))
-                registro = cursor.fetchone()
-                
-                if registro:
-                    v_curso, v_alunos = registro
-                    cursor.execute("UPDATE turmas SET status = 'Realizada' WHERE id = %s;", (id_selecionado,))
-                    cursor.execute("""
-                        UPDATE cursos SET alunos_realizados = alunos_realizados + %s WHERE nome = %s;
-                    """, (v_alunos, v_curso))
+                with conn.cursor() as cur:
+                    cur.execute("SELECT curso, alunos FROM turmas WHERE id = %s AND status = 'Agendada';", (id_selecionado,))
+                    registro = cur.fetchone()
                     
-                    conn.commit()
-                    st.success(f"Sucesso! A Turma ID {id_selecionado} foi definida como REALIZADA.")
-                    st.rerun()
-                else:
-                    st.error("ID não encontrado ou a turma já foi realizada.")
+                    if registro:
+                        v_curso, v_alunos = registro
+                        cur.execute("UPDATE turmas SET status = 'Realizada' WHERE id = %s;", (id_selecionado,))
+                        cur.execute("UPDATE cursos SET alunos_realizados = alunos_realizados + %s WHERE nome = %s;", (v_alunos, v_curso))
+                        st.success(f"Sucesso! A Turma ID {id_selecionado} foi definida como REALIZADA.")
+                        st.rerun()
+                    else:
+                        st.error("ID não encontrado ou a turma já foi realizada.")
         else:
             st.info("Não existem turmas com o status 'Agendada' no momento.")
 
@@ -438,18 +442,18 @@ elif menu == "Histórico e Reciclagens":
             id_para_apagar = st.number_input("Digite o ID da turma que deseja apagar", min_value=1, step=1, key="id_delete_turma")
             
             if st.button("Apagar Turma do Registro"):
-                cursor.execute("SELECT curso, alunos, status FROM turmas WHERE id = %s;", (id_para_apagar,))
-                resultado = cursor.fetchone()
-                
-                if resultado:
-                    v_curso, v_alunos, v_status = resultado
-                    cursor.execute("DELETE FROM turmas WHERE id = %s;", (id_para_apagar,))
-                    if v_status == "Realizada":
-                        cursor.execute("UPDATE cursos SET alunos_realizados = GREATEST(0, alunos_realizados - %s) WHERE nome = %s;", (v_alunos, v_curso))
-                    conn.commit()
-                    st.success(f"Turma com ID {id_para_apagar} foi removida!")
-                    st.rerun()
-                else:
-                    st.error("ID de turma não encontrado no banco de dados.")
+                with conn.cursor() as cur:
+                    cur.execute("SELECT curso, alunos, status FROM turmas WHERE id = %s;", (id_para_apagar,))
+                    resultado = cur.fetchone()
+                    
+                    if resultado:
+                        v_curso, v_alunos, v_status = resultado
+                        cur.execute("DELETE FROM turmas WHERE id = %s;", (id_para_apagar,))
+                        if v_status == "Realizada":
+                            cur.execute("UPDATE cursos SET alunos_realizados = GREATEST(0, alunos_realizados - %s) WHERE nome = %s;", (v_alunos, v_curso))
+                        st.success(f"Turma com ID {id_para_apagar} foi removida!")
+                        st.rerun()
+                    else:
+                        st.error("ID de turma não encontrado no banco de dados.")
         else:
-            st.warning("Nenhuma turma ativa registrada.")
+            st.info("Nenhuma turma ativa registrada.")
