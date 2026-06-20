@@ -4,9 +4,9 @@ import pandas as pd
 from datetime import date, datetime, timedelta
 
 # ==================================================
-# CONFIGURAÇÃO DE IMAGENS E LOGOS (LINKS DIRETOS E ESTÁVEIS)
+# CONFIGURAÇÃO DE IMAGENS E LOGOS OFICIAIS
 # ==================================================
-URL_LOGO_MULTITECH = "https://i.ibb.co/68X66bH/multitech-logo.png" # Link alternativo direto estável
+URL_LOGO_MULTITECH = "https://tse3.mm.bing.net/th/id/OIP.L8zPK2KlscAyAmNBldf3bgHaHa?pid=Api&P=0&h=180"
 URL_LOGO_HARMAN = "https://cdn.freelogovectors.net/wp-content/uploads/2020/03/harman-logo.png"
 URL_ICONE_NATIVO = URL_LOGO_HARMAN
 
@@ -17,7 +17,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# Estilização profissional corrigida para garantir contraste e visibilidade do menu lateral
+# Estilização profissional para fixar contraste, visibilidade e bordas das logos
 st.markdown("""
 <style>
 .main { background-color: #F4F7FA; }
@@ -29,7 +29,7 @@ st.markdown("""
 [data-testid="stSidebar"] p, [data-testid="stSidebar"] label, [data-testid="stSidebar"] span { 
     color: white !important; 
 }
-/* Garante que as opções do rádio menu também fiquem perfeitamente visíveis em branco */
+/* Força visibilidade total das opções do rádio menu */
 [data-testid="stSidebar"] div[role="radiogroup"] label p {
     color: white !important;
 }
@@ -52,19 +52,10 @@ st.markdown("""
 .metric-value { color: #0A2D62 !important; font-size: 28px; font-weight: bold; }
 h1, h2, h3 { color:#0A2D62; }
 
-/* Ajuste responsivo para evitar quebra de layout em celulares */
-@media (max-width: 768px) {
-    div[data-testid="stColumn"] img {
-        max-width: 140px !important;
-        height: auto !important;
-        display: block;
-        margin-left: auto !important;
-        margin-right: auto !important;
-        padding-bottom: 10px;
-    }
-    div[data-testid="stColumn"] {
-        text-align: center !important;
-    }
+/* Ajuste específico para as imagens dentro das colunas da barra lateral */
+[data-testid="stSidebar"] [data-testid="stColumn"] img {
+    border-radius: 8px;
+    background-color: transparent;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -162,35 +153,32 @@ except Exception:
     pass
 
 # ==================================================
-# BARRA LATERAL (MENU SIDEBAR COM AMBAS AS LOGOS LADO A LADO)
+# BARRA LATERAL (MENU SIDEBAR) - CONFIGURAÇÃO DA FOTO
 # ==================================================
 with st.sidebar:
-    st.markdown("<p style='text-align: center; font-size: 11px; color: #BACAD6; letter-spacing: 1px; margin-bottom: 15px;'>PARCERIA COMERCIAL</p>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; font-size: 11px; color: #BACAD6; letter-spacing: 1px; margin-bottom: 10px;'>PARCERIA COMERCIAL</p>", unsafe_allow_html=True)
     
-    # Criação de colunas internas na barra lateral para colocar as logos lado a lado
-    side_col1, side_col2 = st.columns(2)
+    # Colunas perfeitamente distribuídas na barra lateral para as duas logos ficarem lado a lado
+    side_col1, side_col2 = st.columns([1, 1])
     with side_col1:
+        try:
+            st.image(URL_LOGO_MULTITECH, use_container_width=True)
+        except Exception:
+            pass
+    with side_col2:
         try:
             st.image(URL_LOGO_HARMAN, use_container_width=True)
         except Exception:
             pass
-    with side_col2:
-        # Usando a logo oficial da Harman de forma secundária ou texto caso queira inverter
-        try:
-            # Caso queira exibir a logo redonda da MultiTech ou outra imagem, ela será renderizada aqui
-            st.image("logo.png", use_container_width=True) 
-        except Exception:
-            # Fallback usando texto estilizado caso a imagem local 'logo.png' não exista no ambiente do Streamlit
-            st.markdown("<h4 style='color: white; text-align: center; margin: 0; padding-top: 10px;'>MT</h4>", unsafe_allow_html=True)
             
     st.markdown("<br>", unsafe_allow_html=True)
     menu = st.radio("Menu de Navegação", ["Dashboard", "Agendar Turma", "Controle de Saldo", "Gerenciar Alunos", "Histórico e Reciclagens"])
 
-# Cabeçalho principal do corpo da página
-head_col1, head_col2, head_col3 = st.columns([1, 4, 1.2])
+# Cabeçalho principal alinhado e limpo (Logo da MultiTech à esquerda e Harman à direita)
+head_col1, head_col2, head_col3 = st.columns([0.8, 4, 1.2])
 with head_col1: 
     try:
-        st.image(URL_LOGO_HARMAN, width=110)
+        st.image(URL_LOGO_MULTITECH, width=75)
     except Exception:
         pass
 with head_col2:
@@ -255,13 +243,10 @@ elif menu == "Agendar Turma":
         saldo_atual = 0
         try:
             with conn.cursor() as cur:
-                cur.execute("SELECT saldo_contratado, status FROM cursos WHERE nome = %s", (curso,))
+                cur.execute("SELECT saldo_contratado, alunos_realizados FROM cursos WHERE nome = %s", (curso,))
                 res_curso = cur.fetchone()
             if res_curso:
-                # Recalcula com base nas movimentações reais do banco
-                cursos_df = pd.read_sql("SELECT * FROM cursos WHERE nome = %s", conn, params=[curso])
-                if not cursos_df.empty:
-                    saldo_atual = cursos_df.iloc[0]["saldo_contratado"] - cursos_df.iloc[0]["alunos_realizados"]
+                saldo_atual = res_curso[0] - res_curso[1]
         except Exception:
             pass
         st.info(f"Saldo disponível para este curso: {saldo_atual} vagas")
@@ -423,7 +408,7 @@ elif menu == "Histórico e Reciclagens":
                             v_curso, v_alunos = registro
                             cur.execute("UPDATE turmas SET status = 'Realizada' WHERE id = %s;", (id_selecionado,))
                             cur.execute("UPDATE cursos SET alunos_realizados = alunos_realizados + %s WHERE nome = %s;", (v_alunos, v_curso))
-                            st.success("Status updated!")
+                            st.success("Status atualizado!")
                             st.rerun()
                 except Exception as e:
                     st.error(f"Erro: {e}")
