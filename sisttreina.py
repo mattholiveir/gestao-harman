@@ -2,29 +2,29 @@ import streamlit as st
 import psycopg2
 import pandas as pd
 from datetime import date, datetime, timedelta
-from PIL import Image  # Biblioteca para carregar a imagem local como ícone nativo
+from PIL import Image  # Garante que a logo local se torne o ícone nativo do aplicativo no celular
 
 # ==================================================
 # CONFIGURAÇÃO DE IMAGENS E LOGOS
 # ==================================================
-# Links das imagens externas (Parceria MultiTech e Harman)
-URL_LOGO_MULTITECH = "https://i.ibb.co/B2qyC90/MTH.png"
-URL_LOGO_HARMAN = "https://i.ibb.co/b3bNfFv/harman.png"
+# Links de imagem válidos fornecidos por você
+URL_LOGO_MULTITECH = "https://tse3.mm.bing.net/th/id/OIP.L8zPK2KlscAyAmNBldf3bgHaHa?pid=Api&P=0&h=180"
+URL_LOGO_HARMAN = "https://cdn.freelogovectors.net/wp-content/uploads/2020/03/harman-logo.png"
 
-# Carrega a logo local de forma segura para usar como ícone nativo do App
+# Carrega a imagem local "logo.png" de maneira segura para o ícone da página/atalho
 try:
     img_icone_nativo = Image.open("logo.png")
 except Exception:
-    img_icone_nativo = "📊"  # Fallback caso a imagem local suma por algum motivo
+    img_icone_nativo = "📊"  # Fallback estável caso a imagem sofra algum problema de leitura
 
 # CONFIGURAÇÃO DA PÁGINA
 st.set_page_config(
     page_title="Gestão de Treinamentos - Harman 2026",
-    page_icon=img_icone_nativo,  # Agora o ícone nativo/aba do celular será a sua logo.png
+    page_icon=img_icone_nativo,  # Define o ícone nativo que aparecerá ao instalar no celular
     layout="wide"
 )
 
-# Estilização profissional
+# Estilização profissional do ecossistema Harman/MultiTech
 st.markdown("""
 <style>
 .main { background-color: #F4F7FA; }
@@ -51,7 +51,7 @@ h1, h2, h3 { color:#0A2D62; }
 </style>
 """, unsafe_allow_html=True)
 
-# Botão na barra lateral para limpar estado caso algo trave
+# Botão para limpeza manual da memória do servidor se houver retenção de imagens antigas
 if st.sidebar.button("♻️ Limpar Cache e Forçar Reinício"):
     st.cache_resource.clear()
     st.rerun()
@@ -149,7 +149,6 @@ except Exception:
 with st.sidebar:
     st.markdown("<p style='text-align: center; font-size: 11px; color: #BACAD6; letter-spacing: 1px;'>PARCERIA COMERCIAL</p>", unsafe_allow_html=True)
     
-    # Exibe a logo da MultiTech na barra lateral de forma limpa
     try:
         st.image(URL_LOGO_MULTITECH, use_container_width=True)
     except Exception:
@@ -158,11 +157,11 @@ with st.sidebar:
     st.markdown("<br>", unsafe_allow_html=True)
     menu = st.sidebar.radio("Menu de Navegação", ["Dashboard", "Agendar Turma", "Controle de Saldo", "Gerenciar Alunos", "Histórico e Reciclagens"])
 
-# Cabeçalho principal com as duas logos separadas nas pontas
-head_col1, head_col2, head_col3 = st.columns([1, 4, 1])
+# Cabeçalho principal com as logos originais e alinhadas
+head_col1, head_col2, head_col3 = st.columns([1, 4, 1.2])
 with head_col1: 
     try:
-        st.image(URL_LOGO_MULTITECH, width=120)
+        st.image(URL_LOGO_MULTITECH, width=110)
     except Exception:
         pass
 with head_col2:
@@ -170,7 +169,8 @@ with head_col2:
     st.caption("MultiTech Treinamentos Industriais — Cliente: Harman")
 with head_col3:
     try:
-        st.image(URL_LOGO_HARMAN, width=120)
+        # Imagem com redimensionamento apropriado para logotipos retangulares horizontais
+        st.image(URL_LOGO_HARMAN, use_container_width=True)
     except Exception:
         pass
 st.markdown("<br>", unsafe_allow_html=True)
@@ -247,7 +247,7 @@ elif menu == "Agendar Turma":
             except Exception as e:
                 st.error(f"Erro ao salvar turma: {e}")
     else:
-        st.warning("Cadastre un curso primeiro no separador 'Controle de Saldo'.")
+        st.warning("Cadastre um curso primeiro no separador 'Controle de Saldo'.")
 
 # ==================================================
 # CONTROLE DE SALDO
@@ -392,7 +392,7 @@ elif menu == "Histórico e Reciclagens":
                             v_curso, v_alunos = registro
                             cur.execute("UPDATE turmas SET status = 'Realizada' WHERE id = %s;", (id_selecionado,))
                             cur.execute("UPDATE cursos SET alunos_realizados = alunos_realizados + %s WHERE nome = %s;", (v_alunos, v_curso))
-                            st.success("Status atualizado!")
+                            st.success("Status updated!")
                             st.rerun()
                 except Exception as e:
                     st.error(f"Erro: {e}")
