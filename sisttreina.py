@@ -4,28 +4,19 @@ import pandas as pd
 import base64
 from datetime import date, datetime, timedelta
 
-# ==================================================
-# CONFIGURAÇÃO DE IMAGENS E LOGOS
-# ==================================================
-URL_LOGO_HARMAN = "https://cdn.freelogovectors.net/wp-content/uploads/2020/03/harman-logo.png"
-
-def obter_icone_base64(caminho_imagem):
-    try:
-        with open(caminho_imagem, "rb") as image_file:
-            return "data:image/png;base64," + base64.b64encode(image_file.read()).decode()
-    except Exception:
-        return URL_LOGO_HARMAN
-
-LINK_ICONE_FINAL = obter_icone_base64("logo.png")
-
-# CONFIGURAÇÃO DA PÁGINA
+# CONFIGURAÇÃO DA PÁGINA (Deve ser o primeiro comando Streamlit)
 st.set_page_config(
     page_title="Gestão de Treinamentos - Harman 2026",
-    page_icon=LINK_ICONE_FINAL,
+    page_icon="🎯",
     layout="wide"
 )
 
-# Estilização sem string formatada (f-string) para impedir vazamento de chaves CSS
+# ==================================================
+# CONFIGURAÇÃO DE IMAGENS AND LOGOS
+# ==================================================
+URL_LOGO_HARMAN = "https://cdn.freelogovectors.net/wp-content/uploads/2020/03/harman-logo.png"
+
+# Estilização Pura (Sem f-string) para garantir estabilidade absoluta do CSS e do Menu Lateral
 st.markdown("""
 <style>
 #MainMenu {visibility: hidden;}
@@ -39,8 +30,8 @@ div[data-testid="stDecoration"] {display: none;}
 }
 
 .main { background-color: #F4F7FA; }
-[data-testid="stSidebar"]{ background-color:#0A2D62; }
-[data-testid="stSidebar"] *{ color:white; }
+[data-testid="stSidebar"] { background-color:#0A2D62; }
+[data-testid="stSidebar"] * { color:white; }
 [data-testid="stAppViewBlockContainer"] { opacity: 1 !important; }
 div[data-testid="stBlock"] { opacity: 1 !important; }
 
@@ -169,20 +160,21 @@ except Exception:
     pass
 
 # ==================================================
-# BARRA LATERAL (MENU SIDEBAR)
+# BARRA LATERAL (MENU SIDEBAR COM SELETOR DE OPÇÕES)
 # ==================================================
 with st.sidebar:
     st.markdown("<p style='text-align: center; font-size: 11px; color: #BACAD6; letter-spacing: 1px;'>PARCERIA COMERCIAL</p>", unsafe_allow_html=True)
     
+    # Exibe a logo diretamente usando o Streamlit de forma limpa e nativa
     try:
         st.image("logo.png", use_container_width=True)
     except Exception:
         pass
         
     st.markdown("<br>", unsafe_allow_html=True)
-    menu = st.sidebar.radio("Menu de Navegação", ["Dashboard", "Agendar Turma", "Controle de Saldo", "Gerenciar Alunos", "Histórico e Reciclagens"])
+    menu = st.radio("Menu de Navegação", ["Dashboard", "Agendar Turma", "Controle de Saldo", "Gerenciar Alunos", "Histórico e Reciclagens"])
 
-# Cabeçalho principal com as logos alinhadas nas pontas
+# Cabeçalho principal com as logos alinhadas nas pontas de forma nativa e responsiva
 head_col1, head_col2, head_col3 = st.columns([1, 4, 1.2])
 with head_col1: 
     try:
@@ -416,7 +408,7 @@ elif menu == "Histórico e Reciclagens":
                             v_curso, v_alunos = registro
                             cur.execute("UPDATE turmas SET status = 'Realizada' WHERE id = %s;", (id_selecionado,))
                             cur.execute("UPDATE cursos SET alunos_realizados = alunos_realizados + %s WHERE nome = %s;", (v_alunos, v_curso))
-                            st.success("Status updated!")
+                            st.success("Status atualizado!")
                             st.rerun()
                 except Exception as e:
                     st.error(f"Erro: {e}")
