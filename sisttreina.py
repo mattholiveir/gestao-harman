@@ -4,14 +4,15 @@ import pandas as pd
 from datetime import date, datetime, timedelta
 
 # ==================================================
-# CONFIGURAÇÃO DE HOSPEDAGEM INTERNA DA IMAGEM
+# CONFIGURAÇÃO DE HOSPEDAGEM LOCAL DA IMAGEM
 # ==================================================
-# ATENÇÃO: Substitua 'seu-usuario-do-github' pelo seu nome de usuário real do GitHub abaixo:
-URL_LOGO_COMBINADA = "https://raw.githubusercontent.com/mattholiveiro/gestao-harman/principal/logo.png"
+# Lê o ficheiro diretamente da raiz do repositório (evita links externos quebrados)
+URL_LOGO_COMBINADA = "logo.png"
+
 # CONFIGURAÇÃO DA PÁGINA
 st.set_page_config(
     page_title="Gestão de Treinamentos - Harman 2026",
-    page_icon=URL_LOGO_COMBINADA,
+    page_icon="📊",  # Emoji estável para prevenir falhas de carregamento no ícone da aba
     layout="wide"
 )
 
@@ -70,7 +71,6 @@ def conectar_nuvem():
 # Tenta obter a conexão de forma segura reinstanciando se houver falhas anteriores
 try:
     conn = conectar_nuvem()
-    # Verifica se a conexão está ativa; se não, limpa o cache para tentar de novo
     with conn.cursor() as t_cur:
         t_cur.execute("SELECT 1;")
 except Exception:
@@ -79,7 +79,6 @@ except Exception:
 
 # Inicialização segura por blocos isolados com tratamento de transações com falha
 def inicializar_banco(conexao):
-    # Cria as tabelas de forma totalmente segura contra transações interrompidas
     queries = [
         """CREATE TABLE IF NOT EXISTS cursos (
             id SERIAL PRIMARY KEY,
@@ -121,7 +120,6 @@ def inicializar_banco(conexao):
         except Exception:
             pass
 
-    # Tenta inserir registros iniciais de demonstração se a tabela estiver vazia
     try:
         with conexao.cursor() as cur:
             cur.execute("SELECT COUNT(*) FROM cursos;")
@@ -149,7 +147,7 @@ with st.sidebar:
     try:
         st.image(URL_LOGO_COMBINADA, use_container_width=True)
     except Exception:
-        st.warning("Carregando imagem do repositório...")
+        st.warning("A carregar imagem do repositório...")
         
     st.markdown("<br>", unsafe_allow_html=True)
     menu = st.sidebar.radio("Menu de Navegação", ["Dashboard", "Agendar Turma", "Controle de Saldo", "Gerenciar Alunos", "Histórico e Reciclagens"])
@@ -207,7 +205,7 @@ if menu == "Dashboard":
         for _, row in negativos.iterrows():
             st.error(f"Atenção: O curso {row['nome']} está com saldo negativo ({row['saldo_atual']} vagas). Necessita de nova recarga urgente!")
     else:
-        st.info("Nenhum dado encontrado ou banco sincronizando.")
+        st.info("Nenhum dado encontrado ou banco a sincronizar.")
 
 # ==================================================
 # AGENDAR TURMA
@@ -245,7 +243,7 @@ elif menu == "Agendar Turma":
             except Exception as e:
                 st.error(f"Erro ao salvar turma: {e}")
     else:
-        st.warning("Cadastre um curso primeiro na aba 'Controle de Saldo'.")
+        st.warning("Cadastre um curso primeiro no separador 'Controle de Saldo'.")
 
 # ==================================================
 # CONTROLE DE SALDO
@@ -289,7 +287,7 @@ elif menu == "Controle de Saldo":
                 try:
                     with conn.cursor() as cur:
                         cur.execute("UPDATE cursos SET saldo_contratado = saldo_contratado + %s WHERE nome = %s;", (qtd, curso_recarga))
-                        cur.execute("INSERT INTO movimentacoes (data, curso, tipo, quantity, observacao) VALUES (%s, %s, 'RECARGA', %s, %s);", (date.today(), curso_recarga, qtd, obs))
+                        cur.execute("INSERT INTO movimentacoes (data, curso, tipo, quantidade, observacao) VALUES (%s, %s, 'RECARGA', %s, %s);", (date.today(), curso_recarga, qtd, obs))
                     st.success("Recarga aplicada com sucesso!")
                     st.rerun()
                 except Exception as e:
