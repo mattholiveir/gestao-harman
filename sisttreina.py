@@ -8,7 +8,7 @@ from datetime import date, datetime, timedelta
 # =========================
 st.set_page_config(
     page_title="Gestão de Treinamentos - Harman 2026",
-    page_icon="https://raw.githubusercontent.com/tushar-nitk/harman-multitech-assets/main/logo.png",
+    page_icon="https://i.ibb.co/6890NfR/MTH.png",
     layout="wide"
 )
 
@@ -137,8 +137,8 @@ def inicializar_banco(conexao):
 # Executa rotina de segurança
 inicializar_banco(conn)
 
-# URL da Nova Logo Combinada MultiTech + Harman (Atualizada e Estável no GitHub)
-URL_LOGO_COMBINADA = "https://raw.githubusercontent.com/tushar-nitk/harman-multitech-assets/main/logo.png"
+# URL Corrigida (Link Direto) da Logo MultiTech + Harman
+URL_LOGO_COMBINADA = "https://i.ibb.co/6890NfR/MTH.png"
 
 # BUSCA DINÂMICA DE CURSOS
 with conn.cursor() as cursor_limpo:
@@ -294,7 +294,7 @@ elif menu == "Controle de Saldo":
                 try:
                     with conn.cursor() as cur:
                         cur.execute("""
-                            INSERT INTO cursos (nome, saldo_contratado, alunos_realizados, responsavel_tecnico) 
+                            INSERT INTO cursos (nome, saldo_contratado, status, alunos_realizados, responsavel_tecnico) 
                             VALUES (%s, %s, 0, %s)
                             ON CONFLICT (nome) DO NOTHING;
                         """, (novo_curso_nome, qtd_inicial, resp_tecnico))
