@@ -59,63 +59,88 @@ def conectar_nuvem():
         st.stop()
 
 conn = conectar_nuvem()
+
+# Inicialização isolada e segura do banco de dados (Evita InFailedSqlTransaction)
+def inicializar_banco(conexao):
+    with conexao.cursor() as cur:
+        try:
+            # 1. Criação das tabelas base
+            cur.execute("""
+            CREATE TABLE IF NOT EXISTS cursos (
+                id SERIAL PRIMARY KEY,
+                nome VARCHAR(100) UNIQUE,
+                saldo_contratado INTEGER DEFAULT 0,
+                alunos_realizados INTEGER DEFAULT 0,
+                responsavel_tecnico VARCHAR(100) DEFAULT ''
+            );
+            """)
+            cur.execute("""
+            CREATE TABLE IF NOT EXISTS turmas (
+                id SERIAL PRIMARY KEY,
+                data DATE,
+                cliente VARCHAR(100),
+                curso VARCHAR(100),
+                instrutor VARCHAR(100),
+                alunos INTEGER,
+                status VARCHAR(50)
+            );
+            """)
+            cur.execute("""
+            CREATE TABLE IF NOT EXISTS movimentacoes (
+                id SERIAL PRIMARY KEY,
+                data DATE,
+                curso VARCHAR(100),
+                tipo VARCHAR(50),
+                quantidade INTEGER,
+                observacao TEXT
+            );
+            """)
+            cur.execute("""
+            CREATE TABLE IF NOT EXISTS colaboradores (
+                matricula VARCHAR(50) PRIMARY KEY,
+                nome_completo VARCHAR(150),
+                funcao VARCHAR(100),
+                divisao_codigo VARCHAR(10),
+                divisao_nome VARCHAR(50)
+            );
+            """)
+            conexao.commit()
+        except Exception as e:
+            conexao.rollback()
+            st.error(f"Erro estrutural ao criar tabelas: {e}")
+
+        try:
+            # 2. Atualização de colunas legadas de forma segura
+            cur.execute("ALTER TABLE cursos ADD COLUMN IF NOT EXISTS responsavel_tecnico VARCHAR(100) DEFAULT '';")
+            conexao.commit()
+        except Exception:
+            conexao.rollback()
+
+        try:
+            # 3. Inserção de dados iniciais padrão
+            cur.execute("SELECT COUNT(*) FROM cursos;")
+            if cur.fetchone()[0] == 0:
+                cur.execute("INSERT INTO cursos (nome, saldo_contratado, responsavel_tecnico) VALUES ('NR12', 0, 'MultiTech'), ('Normas Técnicas de Solda', 0, 'MultiTech');")
+                conexao.commit()
+        except Exception:
+            conexao.rollback()
+
+# Executa a limpeza estrutural
+inicializar_banco(conn)
+
+# Reabre um cursor limpo para a aplicação principal
 cursor = conn.cursor()
-
-# Garantia estrutural das tabelas no Supabase
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS cursos (
-    id SERIAL PRIMARY KEY,
-    nome VARCHAR(100) UNIQUE,
-    saldo_contratado INTEGER DEFAULT 0,
-    alunos_realizados INTEGER DEFAULT 0,
-    responsavel_tecnico VARCHAR(100) DEFAULT ''
-);
-CREATE TABLE IF NOT EXISTS turmas (
-    id SERIAL PRIMARY KEY,
-    data DATE,
-    cliente VARCHAR(100),
-    curso VARCHAR(100),
-    instrutor VARCHAR(100),
-    alunos INTEGER,
-    status VARCHAR(50)
-);
-CREATE TABLE IF NOT EXISTS movimentacoes (
-    id SERIAL PRIMARY KEY,
-    data DATE,
-    curso VARCHAR(100),
-    tipo VARCHAR(50),
-    quantidade INTEGER,
-    observacao TEXT
-);
-CREATE TABLE IF NOT EXISTS colaboradores (
-    matricula VARCHAR(50) PRIMARY KEY,
-    nome_completo VARCHAR(150),
-    funcao VARCHAR(100),
-    divisao_codigo VARCHAR(10),
-    divisao_nome VARCHAR(50)
-);
-""")
-conn.commit()
-
-# Adiciona coluna caso não exista (segurança contra quebras)
-try:
-    cursor.execute("ALTER TABLE cursos ADD COLUMN IF NOT EXISTS responsavel_tecnico VARCHAR(100) DEFAULT '';")
-    conn.commit()
-except Exception:
-    conn.rollback()
-
-# Popula cursos padrão se o banco estiver vazio
-cursor.execute("SELECT COUNT(*) FROM cursos;")
-if cursor.fetchone()[0] == 0:
-    cursor.execute("INSERT INTO cursos (nome, saldo_contratado, responsavel_tecnico) VALUES ('NR12', 0, 'MultiTech'), ('Normas Técnicas de Solda', 0, 'MultiTech');")
-    conn.commit()
 
 # URL da Nova Logo Combinada MultiTech + Harman
 URL_LOGO_COMBINADA = "https://i.ibb.co/6W4wWwz/image.png"
 
 # BUSCA DINÂMICA DE CURSOS
-cursor.execute("SELECT nome FROM cursos ORDER BY nome;")
-lista_cursos_banco = [row[0] for row in cursor.fetchall()]
+try:
+    cursor.execute("SELECT nome FROM cursos ORDER BY nome;")
+    lista_cursos_banco = [row[0] for row in cursor.fetchall()]
+except Exception:
+    conn.rollback()
+    lista_cursos_banco = []
 
 # ==================================================
 # BARRA LATERAL (MENU SIDEBAR)
