@@ -1,6 +1,7 @@
 import streamlit as st
 import psycopg2
 import pandas as pd
+import plotly.express as px
 from datetime import date, datetime, timedelta
 
 # ==================================================
@@ -18,48 +19,56 @@ st.set_page_config(
 )
 
 # ==================================================
-# ESTILIZAÇÃO CORPORATIVA PROFISSIONAL (DESIGN CLEAN/DARK)
+# ESTILIZAÇÃO CORPORATIVA MODERN DARK (GLASSMORPHISM LEVE)
 # ==================================================
 st.markdown("""
 <style>
-/* Background Principal e Sidebar - Azul-marinho quase preto e discreto */
+/* Background Principal - Gradiente Moderno Escuro (Azul-marinho profundo + Azul Grafite) */
 .stApp {
-    background: linear-gradient(135deg, #0B1120 0%, #111827 100%) !important;
-}
-[data-testid="stSidebar"] { 
-    background-color: #0B1120 !important; 
-    border-right: 1px solid rgba(255, 255, 255, 0.05);
+    background: linear-gradient(145deg, #0B1120 0%, #1A2235 50%, #111827 100%) !important;
+    background-attachment: fixed !important;
 }
 
-/* Forçar textos globais e do menu em branco e alta legibilidade */
+/* Sidebar com transparência sutil e textura de apoio */
+[data-testid="stSidebar"] { 
+    background-color: rgba(11, 17, 32, 0.85) !important; 
+    backdrop-filter: blur(10px);
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Tipografia e Textos Globais de Alta Legibilidade */
 h1, h2, h3, h4, h5, h6, p, span, label { 
     color: #F3F4F6 !important; 
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 [data-testid="stSidebar"] p, [data-testid="stSidebar"] label, [data-testid="stSidebar"] span { 
-    color: #F3F4F6 !important; 
+    color: #E5E7EB !important; 
 }
 [data-testid="stSidebar"] div[role="radiogroup"] label p {
-    color: #E5E7EB !important;
+    color: #F3F4F6 !important;
 }
 
-/* Faixa decorativa nativa superior quase imperceptível */
+/* Faixa Superior com Brilho Corporativo Suave */
 .stApp [data-testid="stDecoration"] { 
-    background-image: linear-gradient(90deg, #1E3A8A, #2563EB) !important; 
+    background-image: linear-gradient(90deg, #1E40AF, #3B82F6) !important; 
 }
 
-/* Cards Operacionais - Superfície sólida, 3% a 6% de transparência, borda sutil e sem glow */
-.metric-container {
-    background-color: rgba(30, 41, 59, 0.95) !important; /* Superfície firme e quase opaca */
+/* Cards Operacionais e Gráficos - Glassmorphism Leve (15% de transparência, borda sutil 10%) */
+.metric-container, .chart-card {
+    background: rgba(30, 41, 59, 0.45) !important;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
     padding: 22px 18px;
-    border-radius: 8px;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2), 0 2px 4px -1px rgba(0, 0, 0, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.06); /* Borda cinza claro muito sutil */
+    border-radius: 12px;
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.10); /* Borda cinza claro com 10% de opacidade */
+    margin-bottom: 15px;
+}
+.metric-container {
     min-height: 110px;
     display: flex;
     flex-direction: column;
     justify-content: center;
-    margin-bottom: 15px;
 }
 .metric-title { 
     color: #9CA3AF !important; 
@@ -69,35 +78,46 @@ h1, h2, h3, h4, h5, h6, p, span, label {
     margin-bottom: 6px; 
 }
 .metric-value { 
-    color: #3B82F6 !important; /* Azul corporativo para destaque limpo dos dados */
+    color: #3B82F6 !important; /* Azul moderno para os dados */
     font-size: 30px; 
     font-weight: 700; 
 }
 
-/* Customização de Tabelas e Dataframes para combinar com o tema */
+/* Tabelas e Dataframes integrados ao tema escuro */
 [data-testid="stTable"], [data-testid="stDataFrame"] {
-    background-color: #111827 !important;
+    background-color: rgba(17, 24, 39, 0.6) !important;
+    backdrop-filter: blur(8px);
     border-radius: 8px;
 }
 
-/* Botões - Azul Corporativo Moderado (#2563EB) sem efeitos neon */
+/* Botões - Azul Corporativo Moderado (#2563EB) com leve hover iluminado */
 div.stButton > button {
     background-color: #2563EB !important;
     color: #FFFFFF !important;
-    border: none !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
     border-radius: 6px !important;
     padding: 8px 16px !important;
     font-weight: 500 !important;
-    transition: background-color 0.2s ease;
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
+    transition: all 0.2s ease;
 }
 div.stButton > button:hover {
-    background-color: #1D4ED8 !important;
+    background-color: #3B82F6 !important;
+    box-shadow: 0 4px 20px rgba(59, 130, 246, 0.4);
+    border-color: rgba(255, 255, 255, 0.2) !important;
 }
 
-/* Ajuste das logos na barra lateral */
+/* Abas (Tabs) customizadas */
+button[data-baseweb="tab"] {
+    color: #9CA3AF !important;
+}
+button[aria-selected="true"] {
+    color: #3B82F6 !important;
+    border-bottom-color: #3B82F6 !important;
+}
+
 [data-testid="stSidebar"] [data-testid="stColumn"] img { 
     border-radius: 6px; 
-    background-color: transparent; 
 }
 </style>
 """, unsafe_allow_html=True)
@@ -189,7 +209,7 @@ except Exception:
     pass
 
 # ==================================================
-# ELEMENTOS E ABAS DA BARRA LATERAL
+# ELEMENTOS E ABAS DA BARRA LATERAL (MENU CORRIGIDO)
 # ==================================================
 with st.sidebar:
     st.markdown("<p style='text-align: center; font-size: 11px; color: #9CA3AF; letter-spacing: 1px; margin-bottom: 10px;'>PARCERIA COMERCIAL</p>", unsafe_allow_html=True)
@@ -200,6 +220,7 @@ with st.sidebar:
         st.image(URL_LOGO_HARMAN, use_container_width=True)
             
     st.markdown("<br>", unsafe_allow_html=True)
+    # MENU RESTAURADO PARA 'Controle de Saldo'
     menu = st.radio("Menu de Navegação", ["Dashboard", "Agendar Turma", "Controle de Saldo", "Gerenciar Alunos", "Histórico e Reciclagens"])
 
 # Cabeçalho Principal unificado
@@ -214,7 +235,7 @@ with head_col3:
 st.markdown("<br>", unsafe_allow_html=True)
 
 # ==================================================
-# DASHBOARD
+# DASHBOARD (COM GRÁFICOS PIZZA E PROFUNDIDADE)
 # ==================================================
 if menu == "Dashboard":
     try:
@@ -229,6 +250,7 @@ if menu == "Dashboard":
         cursos = pd.DataFrame(columns=["nome", "saldo_contratado", "alunos_realizados", "saldo_atual"])
         total_alunos, saldo_geral, total_turmas = 0, 0, 0
 
+    # Grid Superior de Métricas Físicas
     c1, c2, c3, c4 = st.columns(4)
     metricas_dados = [
         {"col": c1, "titulo": "Cursos Ativos", "valor": str(len(cursos))},
@@ -239,6 +261,69 @@ if menu == "Dashboard":
     for item in metricas_dados:
         with item["col"]:
             st.markdown(f'<div class="metric-container"><div class="metric-title">{item["titulo"]}</div><div class="metric-value">{item["valor"]}</div></div>', unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # CARD CENTRAL DE PROGRESSO COM GRÁFICOS DE PIZZA
+    st.markdown('<div class="chart-card">', unsafe_allow_html=True)
+    st.subheader("📊 Gráficos de Progresso e Desempenho Geral")
+    
+    if not cursos.empty and total_alunos + saldo_geral > 0:
+        graph_col1, graph_col2 = st.columns(2)
+        
+        with graph_col1:
+            st.markdown("<p style='text-align:center; font-size:14px; color:#9CA3AF;'>Proporção de Vagas (Consolidado)</p>", unsafe_allow_html=True)
+            # Garantir valores estritamente positivos para o gráfico de pizza
+            v_realizados = max(0, int(total_alunos))
+            v_restantes = max(0, int(saldo_geral))
+            
+            df_pizza_geral = pd.DataFrame({
+                "Status": ["Alunos Treinados", "Vagas Restantes"],
+                "Quantidade": [v_realizados, v_restantes]
+            })
+            
+            fig_geral = px.pie(
+                df_pizza_geral, 
+                values="Quantidade", 
+                names="Status",
+                hole=0.4,
+                color_discrete_sequence=["#2563EB", "#1E293B"]
+            )
+            fig_geral.update_layout(
+                margin=dict(t=10, b=10, l=10, r=10),
+                height=260,
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)',
+                font=dict(color='#F3F4F6'),
+                showlegend=True
+            )
+            st.plotly_chart(fig_geral, use_container_width=True)
+
+        with graph_col2:
+            st.markdown("<p style='text-align:center; font-size:14px; color:#9CA3AF;'>Distribuição de Alunos por Curso</p>", unsafe_allow_html=True)
+            df_cursos_treinados = cursos[cursos["alunos_realizados"] > 0]
+            
+            if not df_cursos_treinados.empty:
+                fig_cursos = px.pie(
+                    df_cursos_treinados,
+                    values="alunos_realizados",
+                    names="nome",
+                    color_discrete_sequence=px.colors.sequential.Blues_r
+                )
+                fig_cursos.update_layout(
+                    margin=dict(t=10, b=10, l=10, r=10),
+                    height=260,
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    plot_bgcolor='rgba(0,0,0,0)',
+                    font=dict(color='#F3F4F6'),
+                    showlegend=False
+                )
+                st.plotly_chart(fig_cursos, use_container_width=True)
+            else:
+                st.info("Aguardando realização de turmas para gerar dados por curso.")
+    else:
+        st.info("Sem dados operacionais suficientes no banco para renderizar os gráficos de progresso.")
+    st.markdown('</div>', unsafe_allow_html=True)
 
     st.divider()
     st.subheader("Resumo de Saldos Oficiais por Curso")
@@ -288,7 +373,7 @@ elif menu == "Agendar Turma":
         st.warning("Cadastre um curso primeiro no separador 'Controle de Saldo'.")
 
 # ==================================================
-# CONTROLE DE SALDO
+# CONTROLE DE SALDO (SÓLIDO COM LEVE TRANSPARÊNCIA)
 # ==================================================
 elif menu == "Controle de Saldo":
     st.subheader("Auditoria e Controle de Saldos")
@@ -304,7 +389,7 @@ elif menu == "Controle de Saldo":
             with alvo_col:
                 status_texto = "POSITIVO (Disponível)" if row['saldo_atual'] >= 0 else "NEGATIVO (Excedido)"
                 st.markdown(f"""
-                <div style="background-color: rgba(30, 41, 59, 0.95); padding: 15px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.06); margin-bottom: 15px;">
+                <div style="background-color: rgba(30, 41, 59, 0.55); padding: 15px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); margin-bottom: 15px; backdrop-filter: blur(8px);">
                     <h4 style="margin: 0; color: #F3F4F6;">{row['nome']}</h4>
                     <p style="margin: 5px 0; font-size: 14px; color: #9CA3AF;">Contratado: <b>{row['saldo_contratado']}</b> | Treinado: <b>{row['alunos_realizados']}</b></p>
                     <p style="margin: 0; font-size: 15px; color: {'#10B981' if row['saldo_atual'] >= 0 else '#EF4444'};">
@@ -344,7 +429,7 @@ elif menu == "Controle de Saldo":
                 try:
                     with conn.cursor() as cur:
                         cur.execute("""
-                            INSERT INTO cursos (nome, saldo_contratado, alunos_realizados, responsavel_tecnico) 
+                            INSERT INTO cursos (nome, saldo_contratado, uint8 DEFAULT 0, responsavel_tecnico) 
                             VALUES (%s, %s, 0, %s)
                             ON CONFLICT (nome) DO NOTHING;
                         """, (novo_curso_nome, qtd_inicial, resp_tecnico))
@@ -430,7 +515,7 @@ elif menu == "Histórico e Reciclagens":
                             v_curso, v_alunos = registro
                             cur.execute("UPDATE turmas SET status = 'Realizada' WHERE id = %s;", (id_selecionado,))
                             cur.execute("UPDATE cursos SET alunos_realizados = alunos_realizados + %s WHERE nome = %s;", (v_alunos, v_curso))
-                            st.success("Status atualizado!")
+                            st.success("Status updated!")
                             st.rerun()
                 except Exception as e:
                     st.error(f"Erro: {e}")
