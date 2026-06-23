@@ -10,64 +10,108 @@ URL_LOGO_MULTITECH = "https://tse3.mm.bing.net/th/id/OIP.L8zPK2KlscAyAmNBldf3bgH
 URL_LOGO_HARMAN = "https://cdn.freelogovectors.net/wp-content/uploads/2020/03/harman-logo.png"
 URL_ICONE_NATIVO = URL_LOGO_HARMAN
 
-# CONFIGURAÇÃO DA PÁGINA (Deve ser estritamente o primeiro comando Streamlit)
+# CONFIGURAÇÃO DA PÁGINA (Deve ser o primeiro comando Streamlit)
 st.set_page_config(
     page_title="Gestão de Treinamentos - Harman 2026",
     page_icon=URL_ICONE_NATIVO,
     layout="wide"
 )
 
-# Estilização profissional para fixar contraste, visibilidade e bordas das logos
+# ==================================================
+# ESTILIZAÇÃO CORPORATIVA PROFISSIONAL (DESIGN CLEAN/DARK)
+# ==================================================
 st.markdown("""
 <style>
-.main { background-color: #F4F7FA; }
-
-/* Customização segura da Sidebar */
+/* Background Principal e Sidebar - Azul-marinho quase preto e discreto */
+.stApp {
+    background: linear-gradient(135deg, #0B1120 0%, #111827 100%) !important;
+}
 [data-testid="stSidebar"] { 
-    background-color: #0A2D62; 
+    background-color: #0B1120 !important; 
+    border-right: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* Forçar textos globais e do menu em branco e alta legibilidade */
+h1, h2, h3, h4, h5, h6, p, span, label { 
+    color: #F3F4F6 !important; 
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 [data-testid="stSidebar"] p, [data-testid="stSidebar"] label, [data-testid="stSidebar"] span { 
-    color: white !important; 
+    color: #F3F4F6 !important; 
 }
-/* Força visibilidade total das opções do rádio menu */
 [data-testid="stSidebar"] div[role="radiogroup"] label p {
-    color: white !important;
+    color: #E5E7EB !important;
 }
 
-.stApp [data-testid="stDecoration"] { background-image: linear-gradient(90deg, #0A2D62, #2ECC71); }
+/* Faixa decorativa nativa superior quase imperceptível */
+.stApp [data-testid="stDecoration"] { 
+    background-image: linear-gradient(90deg, #1E3A8A, #2563EB) !important; 
+}
 
+/* Cards Operacionais - Superfície sólida, 3% a 6% de transparência, borda sutil e sem glow */
 .metric-container {
-    background-color: white !important;
-    padding: 20px 15px;
-    border-radius: 10px;
-    box-shadow: 0px 4px 10px rgba(0,0,0,0.05);
-    border: 1px solid #E0E0E0;
+    background-color: rgba(30, 41, 59, 0.95) !important; /* Superfície firme e quase opaca */
+    padding: 22px 18px;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2), 0 2px 4px -1px rgba(0, 0, 0, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.06); /* Borda cinza claro muito sutil */
     min-height: 110px;
     display: flex;
     flex-direction: column;
     justify-content: center;
     margin-bottom: 15px;
 }
-.metric-title { color: #555555 !important; font-size: 14px; font-weight: 500; margin-bottom: 5px; }
-.metric-value { color: #0A2D62 !important; font-size: 28px; font-weight: bold; }
-h1, h2, h3 { color:#0A2D62; }
+.metric-title { 
+    color: #9CA3AF !important; 
+    font-size: 13px; 
+    font-weight: 500; 
+    letter-spacing: 0.5px;
+    margin-bottom: 6px; 
+}
+.metric-value { 
+    color: #3B82F6 !important; /* Azul corporativo para destaque limpo dos dados */
+    font-size: 30px; 
+    font-weight: 700; 
+}
 
-/* Ajuste específico para as imagens dentro das colunas da barra lateral */
-[data-testid="stSidebar"] [data-testid="stColumn"] img {
+/* Customização de Tabelas e Dataframes para combinar com o tema */
+[data-testid="stTable"], [data-testid="stDataFrame"] {
+    background-color: #111827 !important;
     border-radius: 8px;
-    background-color: transparent;
+}
+
+/* Botões - Azul Corporativo Moderado (#2563EB) sem efeitos neon */
+div.stButton > button {
+    background-color: #2563EB !important;
+    color: #FFFFFF !important;
+    border: none !important;
+    border-radius: 6px !important;
+    padding: 8px 16px !important;
+    font-weight: 500 !important;
+    transition: background-color 0.2s ease;
+}
+div.stButton > button:hover {
+    background-color: #1D4ED8 !important;
+}
+
+/* Ajuste das logos na barra lateral */
+[data-testid="stSidebar"] [data-testid="stColumn"] img { 
+    border-radius: 6px; 
+    background-color: transparent; 
 }
 </style>
 """, unsafe_allow_html=True)
 
-# Botão para limpeza manual da memória do servidor
-if st.sidebar.button("♻️ Limpar Cache e Forçar Reinício"):
-    st.cache_resource.clear()
-    st.rerun()
+# Botão estrutural na barra lateral para forçar atualização limpa do cache
+with st.sidebar:
+    if st.button("♻️ Reiniciar Cache Geral"):
+        st.cache_resource.clear()
+        st.rerun()
+    st.divider()
 
-# =========================
+# ==================================================
 # CONEXÃO COM BANCO EM NUVEM (POSTGRESQL)
-# =========================
+# ==================================================
 @st.cache_resource(ttl=60)
 def conectar_nuvem():
     try:
@@ -134,14 +178,6 @@ def inicializar_banco(conexao):
         except Exception:
             pass
 
-    try:
-        with conexao.cursor() as cur:
-            cur.execute("SELECT COUNT(*) FROM cursos;")
-            if cur.fetchone()[0] == 0:
-                cur.execute("INSERT INTO cursos (nome, saldo_contratado, responsavel_tecnico) VALUES ('NR12', 0, 'MultiTech'), ('Normas Técnicas de Solda', 0, 'MultiTech');")
-    except Exception:
-        pass
-
 inicializar_banco(conn)
 
 lista_cursos_banco = []
@@ -153,42 +189,28 @@ except Exception:
     pass
 
 # ==================================================
-# BARRA LATERAL (MENU SIDEBAR) - CONFIGURAÇÃO DA FOTO
+# ELEMENTOS E ABAS DA BARRA LATERAL
 # ==================================================
 with st.sidebar:
-    st.markdown("<p style='text-align: center; font-size: 11px; color: #BACAD6; letter-spacing: 1px; margin-bottom: 10px;'>PARCERIA COMERCIAL</p>", unsafe_allow_html=True)
-    
-    # Colunas perfeitamente distribuídas na barra lateral para as duas logos ficarem lado a lado
+    st.markdown("<p style='text-align: center; font-size: 11px; color: #9CA3AF; letter-spacing: 1px; margin-bottom: 10px;'>PARCERIA COMERCIAL</p>", unsafe_allow_html=True)
     side_col1, side_col2 = st.columns([1, 1])
     with side_col1:
-        try:
-            st.image(URL_LOGO_MULTITECH, use_container_width=True)
-        except Exception:
-            pass
+        st.image(URL_LOGO_MULTITECH, use_container_width=True)
     with side_col2:
-        try:
-            st.image(URL_LOGO_HARMAN, use_container_width=True)
-        except Exception:
-            pass
+        st.image(URL_LOGO_HARMAN, use_container_width=True)
             
     st.markdown("<br>", unsafe_allow_html=True)
     menu = st.radio("Menu de Navegação", ["Dashboard", "Agendar Turma", "Controle de Saldo", "Gerenciar Alunos", "Histórico e Reciclagens"])
 
-# Cabeçalho principal alinhado e limpo (Logo da MultiTech à esquerda e Harman à direita)
+# Cabeçalho Principal unificado
 head_col1, head_col2, head_col3 = st.columns([0.8, 4, 1.2])
 with head_col1: 
-    try:
-        st.image(URL_LOGO_MULTITECH, width=75)
-    except Exception:
-        pass
+    st.image(URL_LOGO_MULTITECH, width=75)
 with head_col2:
     st.title("Sistema de Gestão de Treinamentos")
     st.caption("MultiTech Treinamentos Industriais — Cliente: Harman")
 with head_col3:
-    try:
-        st.image(URL_LOGO_HARMAN, use_container_width=True)
-    except Exception:
-        pass
+    st.image(URL_LOGO_HARMAN, use_container_width=True)
 st.markdown("<br>", unsafe_allow_html=True)
 
 # ==================================================
@@ -282,10 +304,10 @@ elif menu == "Controle de Saldo":
             with alvo_col:
                 status_texto = "POSITIVO (Disponível)" if row['saldo_atual'] >= 0 else "NEGATIVO (Excedido)"
                 st.markdown(f"""
-                <div style="background-color: white; padding: 15px; border-radius: 8px; border: 1px solid #E0E0E0; margin-bottom: 15px;">
-                    <h4 style="margin: 0; color: #0A2D62;">{row['nome']}</h4>
-                    <p style="margin: 5px 0; font-size: 14px; color: #555;">Contratado: <b>{row['saldo_contratado']}</b> | Treinado: <b>{row['alunos_realizados']}</b></p>
-                    <p style="margin: 0; font-size: 15px; color: {'#2ECC71' if row['saldo_atual'] >= 0 else '#E74C3C'};">
+                <div style="background-color: rgba(30, 41, 59, 0.95); padding: 15px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.06); margin-bottom: 15px;">
+                    <h4 style="margin: 0; color: #F3F4F6;">{row['nome']}</h4>
+                    <p style="margin: 5px 0; font-size: 14px; color: #9CA3AF;">Contratado: <b>{row['saldo_contratado']}</b> | Treinado: <b>{row['alunos_realizados']}</b></p>
+                    <p style="margin: 0; font-size: 15px; color: {'#10B981' if row['saldo_atual'] >= 0 else '#EF4444'};">
                         Saldo Restante: <b>{row['saldo_atual']} vagas</b> ({status_texto})
                     </p>
                 </div>
