@@ -130,24 +130,20 @@ with st.sidebar:
     st.divider()
 
 # ==================================================
-# CONEXÃO COM BANCO EM NUVEM (POSTGRESQL - CORRIGIDA)
+# CONEXÃO COM BANCO EM NUVEM (USANDO SECRETS DIRETAMENTE)
 # ==================================================
 @st.cache_resource(ttl=60)
 def conectar_nuvem():
     try:
         cfg = st.secrets["postgres"]
         
-        # ID do seu projeto Supabase
-        project_id = "rzklotmcmrjkikizlszb"
-        
-        # String de conexão estruturada para forçar o parâmetro 'options'
+        # Puxa os dados exatamente como estão salvos nos seus Secrets
         dsn = (
             f"dbname={cfg['database']} "
             f"user={cfg['user']} "
             f"password={cfg['password']} "
             f"host={cfg['host']} "
             f"port={int(cfg['port'])} "
-            f"options='-c synapse_edgerouter.tenant_id={project_id}' "
             f"connect_timeout=10"
         )
         
@@ -229,7 +225,6 @@ with st.sidebar:
         st.image(URL_LOGO_HARMAN, use_container_width=True)
             
     st.markdown("<br>", unsafe_allow_html=True)
-    # MENU RESTAURADO PARA 'Controle de Saldo'
     menu = st.radio("Menu de Navegação", ["Dashboard", "Agendar Turma", "Controle de Saldo", "Gerenciar Alunos", "Histórico e Reciclagens"])
 
 # Cabeçalho Principal unificado
@@ -282,7 +277,6 @@ if menu == "Dashboard":
         
         with graph_col1:
             st.markdown("<p style='text-align:center; font-size:14px; color:#9CA3AF;'>Proporção de Vagas (Consolidado)</p>", unsafe_allow_html=True)
-            # Garantir valores estritamente positivos para o gráfico de pizza
             v_realizados = max(0, int(total_alunos))
             v_restantes = max(0, int(saldo_geral))
             
@@ -382,7 +376,7 @@ elif menu == "Agendar Turma":
         st.warning("Cadastre um curso primeiro no separador 'Controle de Saldo'.")
 
 # ==================================================
-# CONTROLE DE SALDO (SÓLIDO COM LEVE TRANSPARÊNCIA)
+# CONTROLE DE SALDO
 # ==================================================
 elif menu == "Controle de Saldo":
     st.subheader("Auditoria e Controle de Saldos")
