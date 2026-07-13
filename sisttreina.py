@@ -130,18 +130,25 @@ with st.sidebar:
     st.divider()
 
 # ==================================================
-# CONEXÃO COM BANCO EM NUVEM (POSTGRESQL)
+# CONEXÃO COM BANCO EM NUVEM (POSTGRESQL - POOLER 6543)
 # ==================================================
 @st.cache_resource(ttl=60)
 def conectar_nuvem():
     try:
         cfg = st.secrets["postgres"]
+        
+        # Parâmetro de opções obrigatório para autenticar no Pooler (porta 6543) do Supabase
+        project_id = "rzklotmcmrjkikizlszb"
+        options_param = f"-c synapse_edgerouter.tenant_id={project_id}"
+        
         conexao = psycopg2.connect(
             host=cfg["host"],
             database=cfg["database"],
             user=cfg["user"],
             password=cfg["password"],
-            port=int(cfg["port"])
+            port=int(cfg["port"]),
+            options=options_param, # Validação do tenant_id
+            connect_timeout=10
         )
         conexao.autocommit = True
         return conexao
@@ -429,7 +436,7 @@ elif menu == "Controle de Saldo":
                 try:
                     with conn.cursor() as cur:
                         cur.execute("""
-                            INSERT INTO cursos (nome, saldo_contratado, uint8 DEFAULT 0, responsavel_tecnico) 
+                            INSERT INTO cursos (nome, saldo_contratado, alunos_realizados, responsavel_tecnico) 
                             VALUES (%s, %s, 0, %s)
                             ON CONFLICT (nome) DO NOTHING;
                         """, (novo_curso_nome, qtd_inicial, resp_tecnico))
