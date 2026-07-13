@@ -130,26 +130,28 @@ with st.sidebar:
     st.divider()
 
 # ==================================================
-# CONEXÃO COM BANCO EM NUVEM (POSTGRESQL - POOLER 6543)
+# CONEXÃO COM BANCO EM NUVEM (POSTGRESQL - CORRIGIDA)
 # ==================================================
 @st.cache_resource(ttl=60)
 def conectar_nuvem():
     try:
         cfg = st.secrets["postgres"]
         
-        # Parâmetro de opções obrigatório para autenticar no Pooler (porta 6543) do Supabase
+        # ID do seu projeto Supabase
         project_id = "rzklotmcmrjkikizlszb"
-        options_param = f"-c synapse_edgerouter.tenant_id={project_id}"
         
-        conexao = psycopg2.connect(
-            host=cfg["host"],
-            database=cfg["database"],
-            user=cfg["user"],
-            password=cfg["password"],
-            port=int(cfg["port"]),
-            options=options_param, # Validação do tenant_id
-            connect_timeout=10
+        # String de conexão estruturada para forçar o parâmetro 'options'
+        dsn = (
+            f"dbname={cfg['database']} "
+            f"user={cfg['user']} "
+            f"password={cfg['password']} "
+            f"host={cfg['host']} "
+            f"port={int(cfg['port'])} "
+            f"options='-c synapse_edgerouter.tenant_id={project_id}' "
+            f"connect_timeout=10"
         )
+        
+        conexao = psycopg2.connect(dsn)
         conexao.autocommit = True
         return conexao
     except Exception as e:
