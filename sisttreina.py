@@ -130,28 +130,27 @@ with st.sidebar:
     st.divider()
 
 # ==================================================
-# CONEXÃO COM BANCO EM NUVEM (USANDO SECRETS DIRETAMENTE)
+# CONEXÃO COM BANCO EM NUVEM (DIRETO E SEGURO)
 # ==================================================
 @st.cache_resource(ttl=60)
 def conectar_nuvem():
     try:
         cfg = st.secrets["postgres"]
         
-        # Puxa os dados exatamente como estão salvos nos seus Secrets
-        dsn = (
-            f"dbname={cfg['database']} "
-            f"user={cfg['user']} "
-            f"password={cfg['password']} "
-            f"host={cfg['host']} "
-            f"port={int(cfg['port'])} "
-            f"connect_timeout=10"
+        # Conexão direta utilizando os parâmetros puros passados nos Secrets
+        conexao = psycopg2.connect(
+            dbname=cfg["database"],
+            user=cfg["user"],
+            password=cfg["password"],
+            host=cfg["host"],
+            port=int(cfg["port"]),
+            connect_timeout=10
         )
-        
-        conexao = psycopg2.connect(dsn)
         conexao.autocommit = True
         return conexao
     except Exception as e:
         st.error(f"Erro ao conectar ao banco de dados: {e}")
+        st.info("💡 Dica: Verifique se as credenciais nos 'Secrets' do Streamlit estão corretas e se o seu projeto Supabase está ativo.")
         st.stop()
 
 try:
@@ -214,7 +213,7 @@ except Exception:
     pass
 
 # ==================================================
-# ELEMENTOS E ABAS DA BARRA LATERAL (MENU CORRIGIDO)
+# ELEMENTOS E ABAS DA BARRA LATERAL
 # ==================================================
 with st.sidebar:
     st.markdown("<p style='text-align: center; font-size: 11px; color: #9CA3AF; letter-spacing: 1px; margin-bottom: 10px;'>PARCERIA COMERCIAL</p>", unsafe_allow_html=True)
@@ -239,7 +238,7 @@ with head_col3:
 st.markdown("<br>", unsafe_allow_html=True)
 
 # ==================================================
-# DASHBOARD (COM GRÁFICOS PIZZA E PROFUNDIDADE)
+# DASHBOARD
 # ==================================================
 if menu == "Dashboard":
     try:
@@ -254,7 +253,6 @@ if menu == "Dashboard":
         cursos = pd.DataFrame(columns=["nome", "saldo_contratado", "alunos_realizados", "saldo_atual"])
         total_alunos, saldo_geral, total_turmas = 0, 0, 0
 
-    # Grid Superior de Métricas Físicas
     c1, c2, c3, c4 = st.columns(4)
     metricas_dados = [
         {"col": c1, "titulo": "Cursos Ativos", "valor": str(len(cursos))},
@@ -268,7 +266,6 @@ if menu == "Dashboard":
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # CARD CENTRAL DE PROGRESSO COM GRÁFICOS DE PIZZA
     st.markdown('<div class="chart-card">', unsafe_allow_html=True)
     st.subheader("📊 Gráficos de Progresso e Desempenho Geral")
     
@@ -493,11 +490,16 @@ elif menu == "Gerenciar Alunos":
             st.info("Nenhum colaborador registrado ainda.")
 
 # ==================================================
-# HISTÓRICO E RECICLAGENS
+# HISTÓRICO E RECICLAGENS (COM EXCLUSÃO DE TURMAS)
 # ==================================================
 elif menu == "Histórico e Reciclagens":
     st.subheader("Histórico Geral de Treinamentos e Reciclagens")
-    tab_hist, tab_status_update = st.tabs(["Histórico Geral e Vencimentos", "Atualizar Status de Agendamentos"])
+    tab_hist, tab_status_update, tab_delete = st.tabs([
+        "Histórico Geral e Vencimentos", 
+        "Atualizar Status de Agendamentos",
+        "Excluir Turma Cadastrada"
+    ])
+    
     with tab_status_update:
         st.markdown("### Alterar Status de Turmas Agendadas")
         try:
@@ -508,7 +510,7 @@ elif menu == "Histórico e Reciclagens":
             df_agendadas['data'] = pd.to_datetime(df_agendadas['data']).dt.strftime('%d/%m/%Y')
             st.dataframe(df_agendadas, use_container_width=True, hide_index=True)
             st.divider()
-            id_selecionado = st.number_input("Digite o ID da turma concluída:", min_value=1, step=1)
+            id_selecionado = st.number_input("Digite o ID da turma concluída:", min_value=1, step=1, key="id_concluir")
             if st.button("Confirmar Realização da Turma"):
                 try:
                     with conn.cursor() as cur:
@@ -518,12 +520,46 @@ elif menu == "Histórico e Reciclagens":
                             v_curso, v_alunos = registro
                             cur.execute("UPDATE turmas SET status = 'Realizada' WHERE id = %s;", (id_selecionado,))
                             cur.execute("UPDATE cursos SET alunos_realizados = alunos_realizados + %s WHERE nome = %s;", (v_alunos, v_curso))
-                            st.success("Status updated!")
+                            st.success("Status atualizado!")
                             st.rerun()
                 except Exception as e:
                     st.error(f"Erro: {e}")
         else:
             st.info("Não existem turmas agendadas no momento.")
+
+    with tab_delete:
+        st.markdown("### Excluir Registro de Turma")
+        st.warning("⚠️ Atenção: Ao excluir uma turma com status 'Realizada', a quantidade correspondente de alunos será subtraída e o saldo do curso será reajustado automaticamente.")
+        
+        id_para_excluir = st.number_input("Digite o ID da turma que deseja remover do banco:", min_value=1, step=1, key="id_deletar")
+        
+        if st.button("Excluir Turma Permanentemente", type="primary"):
+            try:
+                with conn.cursor() as cur:
+                    # Busca os dados da turma antes de deletar
+                    cur.execute("SELECT curso, alunos, status FROM turmas WHERE id = %s;", (id_para_excluir,))
+                    dados_turma = cur.fetchone()
+                    
+                    if dados_turma:
+                        v_curso, v_alunos, v_status = dados_turma
+                        
+                        # Se já estava marcada como realizada, devolve os alunos ao saldo contratado do curso
+                        if v_status == "Realizada":
+                            cur.execute("""
+                                UPDATE cursos 
+                                SET alunos_realizados = GREATEST(0, alunos_realizados - %s) 
+                                WHERE nome = %s;
+                            """, (v_alunos, v_curso))
+                        
+                        # Deleta a turma do histórico
+                        cur.execute("DELETE FROM turmas WHERE id = %s;", (id_para_excluir,))
+                        st.success(f"Sucesso! A turma ID {id_para_excluir} foi removida e os saldos foram recalculados.")
+                        st.rerun()
+                    else:
+                        st.error("Nenhuma turma encontrada com o ID informado.")
+            except Exception as e:
+                st.error(f"Erro ao tentar remover a turma: {e}")
+
     with tab_hist:
         st.markdown("Regra: Validade recomendada de 2 anos (730 dias).")
         try:
